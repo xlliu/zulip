@@ -137,11 +137,11 @@ MANAGERS = ADMINS
 # https://en.wikipedia.org/wiki/List_of_tz_zones_by_name
 # although not all choices may be available on all operating systems.
 # In a Windows environment this must be set to your system time zone.
-TIME_ZONE = "UTC"
+TIME_ZONE = "Asia/Shanghai"
 
 # Language code for this installation. All choices can be found here:
 # http://www.i18nguy.com/unicode/language-identifiers.html
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "zh-Hans"
 
 # If you set this to False, Django will make some optimizations so as not
 # to load the internationalization machinery.
@@ -211,9 +211,10 @@ INSTALLED_APPS = [
     "django_otp.plugins.otp_totp",
     "two_factor",
     "two_factor.plugins.phonenumber",
+    "pgroonga",
 ]
-if USING_PGROONGA:
-    INSTALLED_APPS += ["pgroonga"]
+# if USING_PGROONGA:
+#     INSTALLED_APPS += ["pgroonga"]
 INSTALLED_APPS += EXTRA_INSTALLED_APPS
 
 ZILENCER_ENABLED = "zilencer" in INSTALLED_APPS
