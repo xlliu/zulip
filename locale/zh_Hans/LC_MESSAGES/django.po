@@ -1821,7 +1821,7 @@ msgstr "如果您不认识此登录名，或者认为您的帐户可能已被盗
 #: templates/zerver/emails/notify_new_login.source.html:41
 #: templates/zerver/emails/notify_new_login.txt:21
 msgid "Zulip Security"
-msgstr "Zulip安全"
+msgstr "Xops安全"
 
 #: templates/zerver/emails/notify_new_login.source.html:46
 msgid "Unsubscribe from login notifications"
@@ -3916,7 +3916,7 @@ msgstr "参数“{}”不是有效的 JSON。"
 
 #: zerver/lib/send_email.py:69
 msgid "Zulip Account Security"
-msgstr "Zulip 账户安全"
+msgstr "Xops 账户安全"
 
 #: zerver/lib/streams.py:228
 msgid "Only organization administrators can send to this stream."
