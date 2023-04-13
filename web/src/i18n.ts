@@ -12,7 +12,7 @@ const cache = createIntlCache();
 export const intl = createIntl(
     {
         locale: page_params.request_language,
-        defaultLocale: "en",
+        defaultLocale: "zh-hans",
         messages: page_params.translation_data,
         /* istanbul ignore next */
         onError(error) {
