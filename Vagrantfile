@@ -6,7 +6,7 @@ Vagrant.configure("2") do |config|
   # The Zulip development environment runs on 9991 on the guest.
   host_port = 9991
   http_proxy = https_proxy = no_proxy = nil
-  host_ip_addr = "127.0.0.1"
+  host_ip_addr = "0.0.0.0"
 
   # System settings for the virtual machine.
   vm_num_cpus = "2"
