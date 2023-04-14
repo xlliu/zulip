@@ -19,7 +19,7 @@ from zerver.lib.realm_description import get_realm_rendered_description, get_rea
 from zerver.lib.realm_icon import get_realm_icon_url
 from zerver.lib.request import RequestNotes
 from zerver.lib.send_email import FromAddress
-from zerver.lib.subdomains import get_subdomain
+from zerver.lib.subdomains import get_subdomain, is_root_domain_available
 from zerver.models import Realm, UserProfile, get_realm
 from zproject.backends import (
     AUTH_BACKEND_NAME_MAP,
@@ -43,7 +43,7 @@ def common_context(user: UserProfile) -> Dict[str, Any]:
     return {
         "realm_uri": user.realm.uri,
         "realm_name": user.realm.name,
-        "root_domain_uri": settings.ROOT_DOMAIN_URI,
+        "root_domain_url": settings.ROOT_DOMAIN_URI,
         "external_uri_scheme": settings.EXTERNAL_URI_SCHEME,
         "external_host": settings.EXTERNAL_HOST,
         "user_name": user.full_name,
@@ -167,7 +167,7 @@ def zulip_default_context(request: HttpRequest) -> Dict[str, Any]:
         "realm_uri": realm_uri,
         "realm_name": realm_name,
         "realm_icon": realm_icon,
-        "root_domain_uri": settings.ROOT_DOMAIN_URI,
+        "root_domain_url": settings.ROOT_DOMAIN_URI,
         "apps_page_url": get_apps_page_url(),
         "apps_page_web": apps_page_web,
         "open_realm_creation": settings.OPEN_REALM_CREATION,
@@ -254,5 +254,15 @@ def latest_info_context() -> Dict[str, str]:
         "latest_release_version": LATEST_RELEASE_VERSION,
         "latest_major_version": LATEST_MAJOR_VERSION,
         "latest_release_announcement": LATEST_RELEASE_ANNOUNCEMENT,
+    }
+    return context
+
+
+def get_realm_create_form_context() -> Dict[str, Any]:
+    context = {
+        "MAX_REALM_NAME_LENGTH": str(Realm.MAX_REALM_NAME_LENGTH),
+        "MAX_REALM_SUBDOMAIN_LENGTH": str(Realm.MAX_REALM_SUBDOMAIN_LENGTH),
+        "root_domain_available": is_root_domain_available(),
+        "sorted_realm_types": sorted(Realm.ORG_TYPES.values(), key=lambda d: d["display_order"]),
     }
     return context

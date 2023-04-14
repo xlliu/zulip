@@ -9,7 +9,6 @@ import render_draft_table_body from "../templates/draft_table_body.hbs";
 
 import * as blueslip from "./blueslip";
 import * as browser_history from "./browser_history";
-import * as color_class from "./color_class";
 import * as compose from "./compose";
 import * as compose_actions from "./compose_actions";
 import * as compose_fade from "./compose_fade";
@@ -25,6 +24,7 @@ import * as narrow_state from "./narrow_state";
 import * as overlays from "./overlays";
 import * as people from "./people";
 import * as rendered_markdown from "./rendered_markdown";
+import * as stream_color from "./stream_color";
 import * as stream_data from "./stream_data";
 import * as sub_store from "./sub_store";
 import * as timerender from "./timerender";
@@ -339,6 +339,8 @@ export function format_draft(draft) {
     const id = draft.id;
     let formatted;
     const time = new Date(draft.updatedAt);
+    let invite_only = false;
+    let is_web_public = false;
     let time_stamp = timerender.render_now(time).time_str;
     if (time_stamp === $t({defaultMessage: "Today"})) {
         time_stamp = timerender.stringify_time(time);
@@ -350,10 +352,15 @@ export function format_draft(draft) {
         let stream_name = draft.stream.length > 0 ? draft.stream : space_string;
         if (draft.stream_id) {
             const sub = sub_store.get(draft.stream_id);
-            if (sub && sub.name !== stream_name) {
-                stream_name = sub.name;
-                draft.stream = stream_name;
-                draft_model.editDraft(id, draft);
+            if (sub) {
+                invite_only = sub.invite_only;
+                is_web_public = sub.is_web_public;
+
+                if (sub.name !== stream_name) {
+                    stream_name = sub.name;
+                    draft.stream = stream_name;
+                    draft_model.editDraft(id, draft);
+                }
             }
         }
         const draft_topic = draft.topic || compose.empty_topic_placeholder();
@@ -363,11 +370,15 @@ export function format_draft(draft) {
             draft_id: draft.id,
             is_stream: true,
             stream_name,
-            stream_color: draft_stream_color,
-            dark_background: color_class.get_css_class(draft_stream_color),
+            recipient_bar_color: stream_color.get_recipient_bar_color(draft_stream_color),
+            stream_privacy_icon_color:
+                stream_color.get_stream_privacy_icon_color(draft_stream_color),
             topic: draft_topic,
             raw_content: draft.content,
+            stream_id: draft.stream_id,
             time_stamp,
+            invite_only,
+            is_web_public,
         };
     } else {
         const emails = util.extract_pm_recipients(draft.private_message_recipient);
@@ -397,7 +408,7 @@ export function format_draft(draft) {
             {
                 draft_content: draft.content,
             },
-            error.stack,
+            error,
         );
         return undefined;
     }

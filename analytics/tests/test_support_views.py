@@ -302,7 +302,9 @@ class TestSupportEndpoint(ZulipTestCase):
             check_zulip_realm_query_result(result)
 
             email = self.nonreg_email("alice")
-            self.client_post("/new/", {"email": email})
+            self.submit_realm_creation_form(
+                email, realm_subdomain="zuliptest", realm_name="Zulip test"
+            )
             result = get_check_query_result(email, 1)
             check_realm_creation_query_result(result, email)
 
@@ -342,7 +344,7 @@ class TestSupportEndpoint(ZulipTestCase):
         """
         Unspecified org type is special in that it is marked to not be shown
         on the registration page (because organitions are not meant to be able to choose it),
-        but should be correctly shown at the /support endpoint.
+        but should be correctly shown at the /support/ endpoint.
         """
         realm = get_realm("zulip")
 
@@ -625,7 +627,7 @@ class TestSupportEndpoint(ZulipTestCase):
                 "/activity/support",
                 {
                     "realm_id": f"{iago.realm_id}",
-                    "downgrade_method": "downgrade_at_billing_cycle_end",
+                    "modify_plan": "downgrade_at_billing_cycle_end",
                 },
             )
             m.assert_called_once_with(get_realm("zulip"))
@@ -640,7 +642,7 @@ class TestSupportEndpoint(ZulipTestCase):
                 "/activity/support",
                 {
                     "realm_id": f"{iago.realm_id}",
-                    "downgrade_method": "downgrade_now_without_additional_licenses",
+                    "modify_plan": "downgrade_now_without_additional_licenses",
                 },
             )
             m.assert_called_once_with(get_realm("zulip"))
@@ -656,7 +658,7 @@ class TestSupportEndpoint(ZulipTestCase):
                     "/activity/support",
                     {
                         "realm_id": f"{iago.realm_id}",
-                        "downgrade_method": "downgrade_now_void_open_invoices",
+                        "modify_plan": "downgrade_now_void_open_invoices",
                     },
                 )
                 m1.assert_called_once_with(get_realm("zulip"))
@@ -664,6 +666,17 @@ class TestSupportEndpoint(ZulipTestCase):
                 self.assert_in_success_response(
                     ["zulip downgraded and voided 1 open invoices"], result
                 )
+
+        with mock.patch("analytics.views.support.switch_realm_from_standard_to_plus_plan") as m:
+            result = self.client_post(
+                "/activity/support",
+                {
+                    "realm_id": f"{iago.realm_id}",
+                    "modify_plan": "upgrade_to_plus",
+                },
+            )
+            m.assert_called_once_with(get_realm("zulip"))
+            self.assert_in_success_response(["zulip upgraded to Plus"], result)
 
     def test_scrub_realm(self) -> None:
         cordelia = self.example_user("cordelia")

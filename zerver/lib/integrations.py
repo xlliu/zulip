@@ -12,7 +12,7 @@ from zerver.lib.storage import static_path
 
 """This module declares all of the (documented) integrations available
 in the Zulip server.  The Integration class is used as part of
-generating the documentation on the /integrations page, while the
+generating the documentation on the /integrations/ page, while the
 WebhookIntegration class is also used to generate the URLs in
 `zproject/urls.py` for webhook integrations.
 
@@ -445,6 +445,7 @@ WEBHOOK_INTEGRATIONS: List[WebhookIntegration] = [
     WebhookIntegration("raygun", ["monitoring"], display_name="Raygun"),
     WebhookIntegration("reviewboard", ["version-control"], display_name="Review Board"),
     WebhookIntegration("rhodecode", ["version-control"], display_name="RhodeCode"),
+    WebhookIntegration("rundeck", ["deployment"], display_name="Rundeck"),
     WebhookIntegration("semaphore", ["continuous-integration", "deployment"]),
     WebhookIntegration("sentry", ["monitoring"]),
     WebhookIntegration(
@@ -561,6 +562,13 @@ INTEGRATIONS: Dict[str, Integration] = {
         logo="images/integrations/logos/jitsi.svg",
         display_name="Jitsi Meet",
         doc="zerver/integrations/jitsi.md",
+    ),
+    "mastodon": Integration(
+        "mastodon",
+        "mastodon",
+        ["communication"],
+        display_name="Mastodon",
+        doc="zerver/integrations/mastodon.md",
     ),
     "matrix": Integration(
         "matrix", "matrix", ["communication"], doc="zerver/integrations/matrix.md"
@@ -782,6 +790,7 @@ DOC_SCREENSHOT_CONFIG: Dict[str, List[BaseScreenshotConfig]] = {
     "raygun": [ScreenshotConfig("new_error.json")],
     "reviewboard": [ScreenshotConfig("review_request_published.json")],
     "rhodecode": [ScreenshotConfig("push.json")],
+    "rundeck": [ScreenshotConfig("start.json")],
     "semaphore": [ScreenshotConfig("pull_request.json")],
     "sentry": [
         ScreenshotConfig("event_for_exception_python.json"),

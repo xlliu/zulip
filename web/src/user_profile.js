@@ -241,7 +241,7 @@ export function show_user_profile(user, default_tab_key = "profile-tab") {
         ],
         callback(name, key) {
             $(".tabcontent").hide();
-            $("#" + key).show();
+            $(`#${CSS.escape(key)}`).show();
             switch (key) {
                 case "profile-tab":
                     initialize_user_type_fields(user);
@@ -358,7 +358,7 @@ export function register_click_handlers() {
     /* These click handlers are implemented as just deep links to the
      * relevant part of the Zulip UI, so we don't want preventDefault,
      * but we do want to close the modal when you click them. */
-    $("body").on("click", "#user-profile-modal #name #edit-button", () => {
+    $("body").on("click", "#user-profile-modal #name .user_profile_edit_button", () => {
         hide_user_profile();
     });
 

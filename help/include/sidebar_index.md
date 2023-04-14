@@ -58,12 +58,17 @@
 ## Writing messages
 * [Message formatting](/help/format-your-message-using-markdown)
 * [Mention a user or group](/help/mention-a-user-or-group)
+* [Format a quote](/help/format-a-quote)
 * [Quote and reply](/help/quote-and-reply)
 * [Emoji and emoticons](/help/emoji-and-emoticons)
+* [Insert a link](/help/insert-a-link)
 * [Share and upload files](/help/share-and-upload-files)
 * [Add GIFs in your message](/help/animated-gifs-from-giphy)
 * [Text emphasis](/help/text-emphasis)
+* [Bulleted and numbered lists](/help/bulleted-and-numbered-lists)
 * [Code blocks](/help/code-blocks)
+* [LaTeX](/help/latex)
+* [Spoilers](/help/spoilers)
 * [Create a poll](/help/create-a-poll)
 * [Start a video call](/help/start-a-call)
 

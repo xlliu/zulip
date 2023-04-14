@@ -187,8 +187,10 @@ export function render_now(time: Date, today = new Date()): TimeRender {
     };
 }
 
+// Relative time rendering for use in most screens like Recent conversations.
+//
 // Current date is passed as an argument for unit testing
-export function last_seen_status_from_date(
+export function relative_time_string_from_date(
     last_active_date: Date,
     current_date = new Date(),
 ): string {
@@ -222,8 +224,50 @@ export function last_seen_status_from_date(
         last_active_date.getFullYear() === current_date.getFullYear()
     ) {
         // Online more than 90 days ago, in the same year
+        return get_localized_date_or_time_for_format(last_active_date, "dayofyear");
+    }
+    return get_localized_date_or_time_for_format(last_active_date, "dayofyear_year");
+}
+
+// Relative time logic variant use in the buddy list, where every
+// string has "Active" init. This is hard to deduplicate with
+// relative_time_string_from_date because of complexities involved in i18n and
+// word order.
+//
+// Current date is passed as an argument for unit testing
+export function last_seen_status_from_date(
+    last_active_date: Date,
+    current_date = new Date(),
+): string {
+    const minutes = differenceInMinutes(current_date, last_active_date);
+    if (minutes < 60) {
+        return $t({defaultMessage: "Active {minutes} minutes ago"}, {minutes});
+    }
+
+    const days_old = differenceInCalendarDays(current_date, last_active_date);
+    const hours = Math.floor(minutes / 60);
+
+    if (hours < 24) {
+        if (hours === 1) {
+            return $t({defaultMessage: "Active an hour ago"});
+        }
+        return $t({defaultMessage: "Active {hours} hours ago"}, {hours});
+    }
+
+    if (days_old === 1) {
+        return $t({defaultMessage: "Active yesterday"});
+    }
+
+    if (days_old < 90) {
+        return $t({defaultMessage: "Active {days_old} days ago"}, {days_old});
+    } else if (
+        days_old > 90 &&
+        days_old < 365 &&
+        last_active_date.getFullYear() === current_date.getFullYear()
+    ) {
+        // Online more than 90 days ago, in the same year
         return $t(
-            {defaultMessage: "{last_active_date}"},
+            {defaultMessage: "Active {last_active_date}"},
             {
                 last_active_date: get_localized_date_or_time_for_format(
                     last_active_date,
@@ -233,7 +277,7 @@ export function last_seen_status_from_date(
         );
     }
     return $t(
-        {defaultMessage: "{last_active_date}"},
+        {defaultMessage: "Active {last_active_date}"},
         {
             last_active_date: get_localized_date_or_time_for_format(
                 last_active_date,
@@ -355,9 +399,10 @@ export function get_timestamp_for_flatpickr(timestring: string): Date {
         // we use it to initialize the flatpickr instance.
         timestamp = parseISO(timestring);
     } finally {
-        // Otherwise, default to showing the current time.
+        // Otherwise, default to showing the current time to the hour.
         if (!timestamp || !isValid(timestamp)) {
             timestamp = new Date();
+            timestamp.setMinutes(0, 0);
         }
     }
     return timestamp;

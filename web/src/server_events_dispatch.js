@@ -689,6 +689,7 @@ export function dispatch_normal_event(event) {
                         realm_logo.render();
                     }
                     $("body").fadeIn(300);
+                    message_lists.update_recipient_bar_background_color();
                 }, 300);
             }
             if (event.property === "starred_message_counts") {
@@ -731,6 +732,11 @@ export function dispatch_normal_event(event) {
                 user_settings.presence_enabled = event.value;
                 $("#user_presence_enabled").prop("checked", user_settings.presence_enabled);
                 activity.redraw_user(page_params.user_id);
+                break;
+            }
+            if (event.property === "email_address_visibility") {
+                user_settings.email_address_visibility = event.value;
+                $("#user_email_address_visibility").val(event.value);
                 break;
             }
             settings_display.update_page(event.property);

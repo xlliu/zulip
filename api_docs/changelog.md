@@ -20,6 +20,27 @@ format used by the Zulip server that they are interacting with.
 
 ## Changes in Zulip 7.0
 
+**Feature level 172**
+
+* [`PATCH /messages/{message_id}`](/api/update-message): Topic editing
+  restrictions now apply to messages without a topic as well.
+* [`PATCH /messages/{message_id}`](/api/update-message): The endpoint
+  now returns an error when users, other than organization administrators
+  and moderators, try to move messages that have passed the time limit
+  using `change_all` value for `propagate_mode` parameter.
+
+**Feature level 171**:
+
+* [`POST /fetch_api_key`](/api/fetch-api-key),
+  [`POST /dev_fetch_api_key`](/api/dev-fetch-api-key): The return values
+  for these endpoints now include the unique ID of the user who owns the
+  API key.
+
+**Feature level 170**
+
+* [`POST /user_topics`](/api/update-user-topic):
+  Added a new endpoint to update the personal preferences for a topic.
+
 **Feature level 169**
 
 * [`PATCH /users/me/subscriptions/muted_topics`](/api/mute-topic):

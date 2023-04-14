@@ -159,6 +159,11 @@ class ZulipTestCase(TestCase):
         flush_per_request_caches()
         translation.activate(settings.LANGUAGE_CODE)
 
+        # Clean up local uploads directory after tests:
+        assert settings.LOCAL_UPLOADS_DIR is not None
+        if os.path.exists(settings.LOCAL_UPLOADS_DIR):
+            shutil.rmtree(settings.LOCAL_UPLOADS_DIR)
+
         # Clean up after using fakeldap in LDAP tests:
         if hasattr(self, "mock_ldap") and hasattr(self, "mock_initialize"):
             if self.mock_ldap is not None:
@@ -802,6 +807,28 @@ Output:
             **extra,
         )
 
+    def submit_realm_creation_form(
+        self,
+        email: str,
+        *,
+        realm_subdomain: str,
+        realm_name: str,
+        realm_type: int = Realm.ORG_TYPES["business"]["id"],
+        realm_in_root_domain: Optional[str] = None,
+    ) -> "TestHttpResponse":
+        payload = {
+            "email": email,
+            "realm_name": realm_name,
+            "realm_type": realm_type,
+            "realm_subdomain": realm_subdomain,
+        }
+        if realm_in_root_domain is not None:
+            payload["realm_in_root_domain"] = realm_in_root_domain
+        return self.client_post(
+            "/new/",
+            payload,
+        )
+
     def get_confirmation_url_from_outbox(
         self,
         email_address: str,
@@ -1428,7 +1455,7 @@ Output:
         This raises a failure inside of the try/except block of
         markdown.__init__.do_convert.
         """
-        with self.settings(ERROR_BOT=None), mock.patch(
+        with mock.patch(
             "zerver.lib.markdown.timeout", side_effect=subprocess.CalledProcessError(1, [])
         ), self.assertLogs(
             level="ERROR"
@@ -1665,10 +1692,10 @@ Output:
         )
 
     @contextmanager
-    def tornado_redirected_to_list(
-        self, lst: List[Mapping[str, Any]], expected_num_events: int
-    ) -> Iterator[None]:
-        lst.clear()
+    def capture_send_event_calls(
+        self, expected_num_events: int
+    ) -> Iterator[List[Mapping[str, Any]]]:
+        lst: List[Mapping[str, Any]] = []
 
         # process_notification takes a single parameter called 'notice'.
         # lst.append takes a single argument called 'object'.
@@ -1684,7 +1711,7 @@ Output:
             # never be sent in tests, and we would be unable to verify them. Hence, we use
             # this helper to make sure the `send_event` calls actually run.
             with self.captureOnCommitCallbacks(execute=True):
-                yield
+                yield lst
 
         self.assert_length(lst, expected_num_events)
 

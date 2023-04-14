@@ -50,7 +50,7 @@ export function init() {
 // WE INITIALIZE DATA STRUCTURES HERE!
 init();
 
-function split_to_ints(lst) {
+export function split_to_ints(lst) {
     return lst.split(",").map((s) => Number.parseInt(s, 10));
 }
 
@@ -347,7 +347,7 @@ export function get_full_names_for_poll_option(user_ids) {
     return get_display_full_names(user_ids).join(", ");
 }
 
-function get_display_full_name(user_id) {
+export function get_display_full_name(user_id) {
     const person = get_by_user_id(user_id);
     if (!person) {
         blueslip.error("Unknown user id " + user_id);
@@ -534,8 +534,8 @@ export function pm_perma_link(message) {
     }
 
     const slug = user_ids.join(",") + "-" + suffix;
-    const uri = "#narrow/pm-with/" + slug;
-    return uri;
+    const url = "#narrow/pm-with/" + slug;
+    return url;
 }
 
 export function pm_with_url(message) {
@@ -560,8 +560,8 @@ export function pm_with_url(message) {
     }
 
     const slug = user_ids.join(",") + "-" + suffix;
-    const uri = "#narrow/pm-with/" + slug;
-    return uri;
+    const url = "#narrow/pm-with/" + slug;
+    return url;
 }
 
 export function update_email_in_reply_to(reply_to, user_id, new_email) {
@@ -700,6 +700,26 @@ export function sender_is_guest(message) {
 export function user_is_bot(user_id) {
     const user = get_by_user_id(user_id);
     return user.is_bot;
+}
+
+export function user_can_direct_message(recipient_ids_string) {
+    // Common function for checking if a user can send a direct
+    // message to the target user (or group of users) represented by a
+    // user ids string.
+
+    // Regardless of policy, we allow sending private messages to bots.
+    const recipient_ids = user_ids_string_to_ids_array(recipient_ids_string);
+    if (recipient_ids.length === 1 && user_is_bot(recipient_ids[0])) {
+        return true;
+    }
+
+    if (
+        page_params.realm_private_message_policy ===
+        settings_config.private_message_policy_values.disabled.code
+    ) {
+        return false;
+    }
+    return true;
 }
 
 function gravatar_url_for_email(email) {
@@ -1238,7 +1258,7 @@ export function add_active_user(person) {
 
 export const is_person_active = (user_id) => {
     if (!people_by_user_id_dict.has(user_id)) {
-        blueslip.error("No user found.", user_id);
+        blueslip.error(`No user ${user_id} found.`);
     }
 
     if (cross_realm_dict.has(user_id)) {

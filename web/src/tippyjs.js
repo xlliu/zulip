@@ -48,6 +48,10 @@ function hide_tooltip_if_reference_removed(
     const callback = function (mutationsList) {
         for (const mutation of mutationsList) {
             for (const node of nodes_to_check_for_removal) {
+                // Hide instance if reference's class changes.
+                if (mutation.type === "attributes" && mutation.attributeName === "class") {
+                    instance.hide();
+                }
                 // Hide instance if reference is in the removed node list.
                 if (Array.prototype.includes.call(mutation.removedNodes, node)) {
                     instance.hide();
@@ -171,8 +175,10 @@ export function initialize() {
         onShow(instance) {
             // Handle dynamic "starred messages" and "edit" widgets.
             const $elem = $(instance.reference);
-            const $template = $("#" + $elem.attr("data-tooltip-template-id"));
-            instance.setContent(parse_html($template.html()));
+            const tippy_content = $elem.attr("data-tippy-content");
+            const $template = $(`#${CSS.escape($elem.attr("data-tooltip-template-id"))}`);
+
+            instance.setContent(tippy_content ?? parse_html($template.html()));
         },
     });
 
@@ -180,7 +186,31 @@ export function initialize() {
         // Remove tooltip when user is trying to tab through all the icons.
         // If user tabs slowly, tooltips are displayed otherwise they are
         // destroyed before they can be displayed.
-        e.currentTarget._tippy.destroy();
+        e.currentTarget?._tippy?.destroy();
+    });
+
+    delegate("body", {
+        target: ".slow-send-spinner",
+        appendTo: () => document.body,
+        onShow(instance) {
+            instance.setContent(
+                $t({
+                    defaultMessage:
+                        "Your message is taking longer than expected to be sent. Sending…",
+                }),
+            );
+            const $elem = $(instance.reference);
+
+            // We need to check for removal of local class from message_row since
+            // .slow-send-spinner is not removed (hidden) from DOM when message is sent.
+            const target = $elem.parents(".message_row").get(0);
+            const config = {attributes: true, childList: false, subtree: false};
+            const nodes_to_check_for_removal = [$elem.get(0)];
+            hide_tooltip_if_reference_removed(target, config, instance, nodes_to_check_for_removal);
+        },
+        onHidden(instance) {
+            instance.destroy();
+        },
     });
 
     delegate("body", {
@@ -190,8 +220,13 @@ export function initialize() {
             const $time_elem = $(instance.reference);
             const $row = $time_elem.closest(".message_row");
             const message = message_lists.current.get(rows.id($row));
+            // Don't show time tooltip for locally echoed message.
+            if (message.locally_echoed) {
+                return false;
+            }
             const time = new Date(message.timestamp * 1000);
             instance.setContent(timerender.get_full_datetime(time));
+            return true;
         },
         onHidden(instance) {
             instance.destroy();
@@ -218,6 +253,9 @@ export function initialize() {
             "#scroll-to-bottom-button-clickable-area",
             ".code_external_link",
             ".spectator_narrow_login_button",
+            "#stream-specific-notify-table .unmute_stream",
+            "#add_streams_tooltip",
+            "#filter_streams_tooltip",
         ],
         appendTo: () => document.body,
     });
@@ -232,16 +270,12 @@ export function initialize() {
     });
 
     delegate("body", {
-        target: "#stream-specific-notify-table .unmute_stream",
-        appendTo: () => document.body,
-    });
-
-    delegate("body", {
         target: [
             ".rendered_markdown .copy_codeblock",
             "#compose_top_right [data-tippy-content]",
             "#compose_top_right [data-tooltip-template-id]",
         ],
+        delay: LONG_HOVER_DELAY,
         appendTo: () => document.body,
         onHidden(instance) {
             instance.destroy();
@@ -284,10 +318,11 @@ export function initialize() {
 
     delegate("body", {
         target: [".enter_sends_true", ".enter_sends_false"],
+        delay: LONG_HOVER_DELAY,
         content: $t({defaultMessage: "Change send shortcut"}),
         onShow() {
             // Don't show tooltip if the popover is displayed.
-            if (popover_menus.compose_enter_sends_popover_displayed) {
+            if (popover_menus.is_compose_enter_sends_popover_displayed()) {
                 return false;
             }
             return true;

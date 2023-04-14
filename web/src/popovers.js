@@ -275,7 +275,7 @@ function render_user_info_popover(
         pm_with_url: hash_util.pm_with_url(user.email),
         user_circle_class: buddy_data.get_user_circle_class(user.user_id),
         private_message_class: private_msg_class,
-        sent_by_uri: hash_util.by_sender_url(user.email),
+        sent_by_url: hash_util.by_sender_url(user.email),
         show_manage_menu,
         user_email: user.delivery_email,
         user_full_name: user.full_name,
@@ -556,11 +556,6 @@ export function focus_first_action_popover_item() {
     // Our popup menus act kind of funny when you mix keyboard and mouse.
     const $items = get_action_menu_menu_items();
     focus_first_popover_item($items);
-}
-
-export function actions_menu_handle_keyboard(key) {
-    const $items = get_action_menu_menu_items();
-    popover_items_handle_keyboard(key, $items);
 }
 
 export function message_info_popped() {
@@ -917,7 +912,7 @@ export function register_click_handlers() {
     // Clicking on one's own status emoji should open the user status modal.
     $("#user_presences").on(
         "click",
-        ".user_sidebar_entry_me .status_emoji",
+        ".user_sidebar_entry_me .status-emoji",
         open_user_status_modal,
     );
 
@@ -1120,7 +1115,6 @@ export function any_active() {
         popover_menus.any_active() ||
         user_sidebar_popped() ||
         stream_popover.stream_popped() ||
-        stream_popover.topic_popped() ||
         message_info_popped() ||
         user_info_popped() ||
         emoji_picker.reactions_popped() ||
@@ -1140,9 +1134,6 @@ export function hide_all_except_sidebars(opts) {
     emoji_picker.hide_emoji_popover();
     giphy.hide_giphy_popover();
     stream_popover.hide_stream_popover();
-    stream_popover.hide_topic_popover();
-    stream_popover.hide_all_messages_popover();
-    stream_popover.hide_drafts_popover();
     hide_all_user_info_popovers();
     hide_playground_links_popover();
 

@@ -31,6 +31,7 @@ import * as stream_data from "./stream_data";
 import * as stream_settings_ui from "./stream_settings_ui";
 import * as sub_store from "./sub_store";
 import * as subscriber_api from "./subscriber_api";
+import {get_timestamp_for_flatpickr} from "./timerender";
 import * as transmit from "./transmit";
 import * as ui_report from "./ui_report";
 import * as upload from "./upload";
@@ -73,11 +74,13 @@ export function update_video_chat_button_display() {
 }
 
 export function clear_invites() {
-    $(`#compose_banners .${compose_banner.CLASSNAMES.recipient_not_subscribed}`).remove();
+    $(
+        `#compose_banners .${CSS.escape(compose_banner.CLASSNAMES.recipient_not_subscribed)}`,
+    ).remove();
 }
 
 export function clear_private_stream_alert() {
-    $(`#compose_banners .${compose_banner.CLASSNAMES.private_stream_warning}`).remove();
+    $(`#compose_banners .${CSS.escape(compose_banner.CLASSNAMES.private_stream_warning)}`).remove();
 }
 
 export function clear_preview_area() {
@@ -264,6 +267,13 @@ export function send_message(request = create_message_object()) {
                 compose_banner.CLASSNAMES.generic_compose_error,
                 $("#compose-textarea"),
             );
+            // For messages that were not locally echoed, we're
+            // responsible for hiding the compose spinner to restore
+            // the compose box so one can send a next message.
+            //
+            // (Restoring this state is handled by clear_compose_box
+            // for locally echoed messages.)
+            compose_ui.hide_compose_spinner();
             return;
         }
 
@@ -281,6 +291,9 @@ export function send_message(request = create_message_object()) {
 
     if (locally_echoed) {
         clear_compose_box();
+        // Schedule a timer to display a spinner when the message is
+        // taking a longtime to send.
+        setTimeout(() => echo.display_slow_send_loading_spinner(message), 5000);
     }
 }
 
@@ -362,7 +375,7 @@ export function update_email(user_id, new_email) {
 
 function insert_video_call_url(url, target_textarea) {
     const link_text = $t({defaultMessage: "Click to join video call"});
-    compose_ui.insert_syntax_and_focus(`[${link_text}](${url})`, target_textarea);
+    compose_ui.insert_syntax_and_focus(`[${link_text}](${url})`, target_textarea, "block", 1);
 }
 
 export function render_and_show_preview($preview_spinner, $preview_content_box, content) {
@@ -451,12 +464,12 @@ export function initialize() {
         // Change compose close button tooltip as per condition.
         // We save compose text in draft only if its length is > 2.
         if (compose_text_length > 2) {
-            $("#compose_close").attr("data-tooltip-template-id", "compose_close_tooltip_template");
-        } else {
             $("#compose_close").attr(
                 "data-tooltip-template-id",
                 "compose_close_and_save_tooltip_template",
             );
+        } else {
+            $("#compose_close").attr("data-tooltip-template-id", "compose_close_tooltip_template");
         }
     });
 
@@ -478,7 +491,7 @@ export function initialize() {
 
     $("#compose_banners").on(
         "click",
-        `.${compose_banner.CLASSNAMES.wildcard_warning} .compose_banner_action_button`,
+        `.${CSS.escape(compose_banner.CLASSNAMES.wildcard_warning)} .compose_banner_action_button`,
         (event) => {
             event.preventDefault();
             compose_validate.clear_wildcard_warnings();
@@ -487,26 +500,28 @@ export function initialize() {
         },
     );
 
-    const user_not_subscribed_classname = `.${compose_banner.CLASSNAMES.user_not_subscribed}`;
+    const user_not_subscribed_selector = `.${CSS.escape(
+        compose_banner.CLASSNAMES.user_not_subscribed,
+    )}`;
     $("#compose_banners").on(
         "click",
-        `${user_not_subscribed_classname} .compose_banner_action_button`,
+        `${user_not_subscribed_selector} .compose_banner_action_button`,
         (event) => {
             event.preventDefault();
 
-            const stream_name = $("#stream_message_recipient_stream").val();
+            const stream_name = compose_state.stream_name();
             if (stream_name === undefined) {
                 return;
             }
             const sub = stream_data.get_sub(stream_name);
             stream_settings_ui.sub_or_unsub(sub);
-            $(user_not_subscribed_classname).remove();
+            $(user_not_subscribed_selector).remove();
         },
     );
 
     $("#compose_banners").on(
         "click",
-        `.${compose_banner.CLASSNAMES.topic_resolved} .compose_banner_action_button`,
+        `.${CSS.escape(compose_banner.CLASSNAMES.topic_resolved)} .compose_banner_action_button`,
         (event) => {
             event.preventDefault();
 
@@ -523,7 +538,9 @@ export function initialize() {
 
     $("#compose_banners").on(
         "click",
-        `.${compose_banner.CLASSNAMES.recipient_not_subscribed} .compose_banner_action_button`,
+        `.${CSS.escape(
+            compose_banner.CLASSNAMES.recipient_not_subscribed,
+        )} .compose_banner_action_button`,
         (event) => {
             event.preventDefault();
 
@@ -558,7 +575,7 @@ export function initialize() {
     );
 
     for (const classname of Object.values(compose_banner.CLASSNAMES)) {
-        const classname_selector = `.${classname}`;
+        const classname_selector = `.${CSS.escape(classname)}`;
         $("#compose_banners").on(
             "click",
             `${classname_selector} .compose_banner_close_button`,
@@ -689,7 +706,7 @@ export function initialize() {
             flatpickr.show_flatpickr(
                 $(compose_click_target)[0],
                 on_timestamp_selection,
-                new Date(),
+                get_timestamp_for_flatpickr(),
                 {
                     // place the time picker above the icon and center it horizontally
                     position: "above center",

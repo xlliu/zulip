@@ -165,7 +165,7 @@ function failed_listing_users() {
     loading.destroy_indicator($("#subs_page_loading_indicator"));
     const status = get_status_field();
     const user_id = people.my_current_user_id();
-    blueslip.error("Error while listing users for user_id " + user_id, status);
+    blueslip.error(`Error while listing users for user_id ${user_id}`, {status});
 }
 
 function populate_users() {
@@ -230,6 +230,8 @@ function bot_info(bot_user_id) {
 
     info.is_current_user = false;
     info.can_modify = page_params.is_admin;
+    info.cannot_deactivate = bot_user.is_system_bot;
+    info.cannot_edit = bot_user.is_system_bot;
 
     // It's always safe to show the real email addresses for bot users
     info.display_email = bot_user.email;
@@ -474,7 +476,7 @@ export function confirm_deactivation(user_id, handle_confirm, loading_spinner) {
 
             const bots_owned_by_user = bot_data.get_all_bots_owned_by_user(user_id);
             const user = people.get_by_user_id(user_id);
-            const realm_uri = page_params.realm_uri;
+            const realm_url = page_params.realm_uri;
             const realm_name = page_params.realm_name;
             const opts = {
                 username: user.full_name,
@@ -482,7 +484,7 @@ export function confirm_deactivation(user_id, handle_confirm, loading_spinner) {
                 bots_owned_by_user,
                 number_of_invites_by_user,
                 admin_email: people.my_current_email(),
-                realm_uri,
+                realm_url,
                 realm_name,
             };
             const html_body = render_settings_deactivation_user_modal(opts);

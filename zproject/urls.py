@@ -132,11 +132,11 @@ from zerver.views.registration import (
 )
 from zerver.views.report import (
     report_csp_violations,
-    report_error,
     report_narrow_times,
     report_send_times,
     report_unnarrow_times,
 )
+from zerver.views.sentry import sentry_tunnel
 from zerver.views.storage import get_storage, remove_storage, update_storage
 from zerver.views.streams import (
     add_default_stream,
@@ -191,7 +191,7 @@ from zerver.views.user_settings import (
     regenerate_api_key,
     set_avatar_backend,
 )
-from zerver.views.user_topics import update_muted_topic
+from zerver.views.user_topics import update_muted_topic, update_user_topic
 from zerver.views.users import (
     add_bot_backend,
     avatar,
@@ -475,7 +475,10 @@ v1_api_and_json_patterns = [
         DELETE=remove_subscriptions_backend,
     ),
     # topic-muting -> zerver.views.user_topics
+    # (deprecated and will be removed once clients are migrated to use '/user_topics')
     rest_path("users/me/subscriptions/muted_topics", PATCH=update_muted_topic),
+    # used to update the personal preferences for a topic -> zerver.views.user_topics
+    rest_path("user_topics", POST=update_user_topic),
     # user-muting -> zerver.views.user_mutes
     rest_path("users/me/muted_users/<int:muted_user_id>", POST=mute_user, DELETE=unmute_user),
     # used to register for an event queue in tornado
@@ -487,11 +490,6 @@ v1_api_and_json_patterns = [
     # These endpoints are for internal error/performance reporting
     # from the browser to the web app, and we don't expect to ever
     # include in our API documentation.
-    rest_path(
-        "report/error",
-        # Logged-out browsers can hit this endpoint, for portico page JS exceptions.
-        POST=(report_error, {"allow_anonymous_user_web", "intentionally_undocumented"}),
-    ),
     rest_path("report/send_times", POST=(report_send_times, {"intentionally_undocumented"})),
     rest_path(
         "report/narrow_times",
@@ -789,6 +787,10 @@ urls += [
     # This registers the remaining SCIM endpoints.
     path("scim/v2/", include("django_scim.urls", namespace="scim")),
 ]
+
+# Front-end Sentry requests tunnel through the server, if enabled
+if settings.SENTRY_FRONTEND_DSN:
+    urls += [path("error_tracing", sentry_tunnel)]
 
 # User documentation site
 help_documentation_view = MarkdownDirectoryView.as_view(

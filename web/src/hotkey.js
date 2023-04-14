@@ -357,13 +357,13 @@ export function process_escape_key(e) {
 }
 
 function handle_popover_events(event_name) {
-    if (popover_menus.actions_popped()) {
-        popovers.actions_menu_handle_keyboard(event_name);
-        return true;
-    }
+    const popover_menu_visible_instance = popover_menus.get_visible_instance();
 
-    if (popover_menus.is_starred_messages_visible()) {
-        popover_menus.starred_messages_sidebar_menu_handle_keyboard(event_name);
+    if (popover_menu_visible_instance) {
+        popover_menus.sidebar_menu_instance_handle_keyboard(
+            popover_menu_visible_instance,
+            event_name,
+        );
         return true;
     }
 
@@ -389,16 +389,6 @@ function handle_popover_events(event_name) {
 
     if (stream_popover.stream_popped()) {
         stream_popover.stream_sidebar_menu_handle_keyboard(event_name);
-        return true;
-    }
-
-    if (stream_popover.topic_popped()) {
-        stream_popover.topic_sidebar_menu_handle_keyboard(event_name);
-        return true;
-    }
-
-    if (stream_popover.all_messages_popped()) {
-        stream_popover.all_messages_sidebar_menu_handle_keyboard(event_name);
         return true;
     }
 
@@ -672,6 +662,13 @@ export function process_hotkey(e, hotkey) {
     }
 
     if (hotkey.message_view_only && gear_menu.is_open()) {
+        // Inside the gear menu, we don't process most hotkeys; the
+        // exception is that the gear_menu hotkey should toggle the
+        // menu closed again.
+        if (event_name === "gear_menu") {
+            gear_menu.close();
+            return true;
+        }
         return false;
     }
 

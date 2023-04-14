@@ -14,9 +14,10 @@ reference**](#message-formatting-reference) in the Zulip app that you can use
 whenever you need a reminder of the formatting syntax below.
 
 * [Text emphasis](#text-emphasis)
-* [Lists](#lists)
-* [Links and images](#links)
-* [Code blocks](#code)
+* [Bulleted lists](#bulleted-lists)
+* [Numbered lists](#numbered-lists)
+* [Links](#links)
+* [Code blocks](#code-blocks)
 * [LaTeX](#latex)
 * [Quotes](#quotes)
 * [Spoilers](#spoilers)
@@ -37,145 +38,47 @@ whenever you need a reminder of the formatting syntax below.
     <kbd>B</kbd> or <kbd>Ctrl</kbd> + <kbd>I</kbd>) to make text bold or italic.
     [Learn more](/help/text-emphasis).
 
-## Lists
-
-Bulleted lists
-```
-* bulleted lists
-  * with sub-bullets too
-  * sub-bullets start with 2 spaces
-    * start sub-sub-bullets with 4 spaces
-* multi
-line
-bullet
-- dashes and
-+ pluses are ok too
-```
-
-![Markdown bullets](/static/images/help/markdown-bullets.png)
-
-Numbered lists
-
-```
-1. numbered lists
-1. increment automatically
-1. one more
-```
-
-![Markdown numbered lists](/static/images/help/markdown-numbered-lists.png)
-
+{!format-lists.md!}
 
 ## Links
 
-Zulip auto-linkifies URLs and [valid stream (and topic) names][link-to-conversation].
-You can also add a [custom linkifier](/help/add-a-custom-linkifier) to link
-patterns like `#1234` to your ticketing system.
+{!links-intro.md!}
 
-[link-to-conversation]: /help/link-to-a-message-or-conversation
+{!links-examples.md!}
 
-```
-Auto-detected URL: zulip.com
-Named link: [Zulip homepage](zulip.com)
-Stream: #**stream name**
-Topic: #**stream name>topic name**
-Custom linkifier: #1234 (links to ticket 1234 in your ticketing system)
-```
+!!! tip ""
+    You can also use a button or a keyboard shortcut (<kbd>Ctrl</kbd> +
+    <kbd>Shift</kbd> + <kbd>L</kbd>) to insert a link.
+    [Learn more](/help/insert-a-link).
 
-![Markdown links](/static/images/help/markdown-links.png)
+## Code blocks
 
-## Images
+{!code-blocks-intro.md!}
 
-See [Share and upload files](/help/share-and-upload-files) to learn more
-about dropping, pasting, and attaching images.
-
-```
-[A whale of a good time](https://your.zulip.domain/user_uploads/1/46/IPvysqXEtiTG1ZdNBrwAZODi/whale-time.png)
-```
-
-![Markdown image](/static/images/help/markdown-image.png)
-
-## Code
-
-~~~
-Inline: `let x = 5`
-
-Code block:
-```
-def f(x):
-   return x+1
-```
-
-Syntax highlighting:
-```python
-def fib(n):
-    # TODO: base case
-    return fib(n-1) + fib(n-2)
-```
-~~~
-
-![Markdown code](/static/images/help/markdown-code.png)
-
-You can also use `~~~` to start code blocks, or just indent the code 4 or more spaces.
-
-See the main [code blocks article](/help/code-blocks) for details on
-[syntax highlighting](/help/code-blocks#language-tagging), [code
-playgrounds](/help/code-blocks#code-playgrounds), and other features.
+{!code-blocks-examples.md!}
 
 ## LaTeX
-~~~
-Inline: $$O(n^2)$$
 
-Displayed:
-``` math
-\int_a^b f(t)\, dt = F(b) - F(a)
-```
-~~~
+{!latex-intro.md!}
 
-![Markdown LaTeX](/static/images/help/markdown-latex.png)
-
-Zulip's LaTeX rendering is powered by [KaTeX](https://katex.org).
-Their [support table](https://katex.org/docs/support_table.html) is a
-helpful resource for checking what's supported or how to express
-something.
+{!latex-examples.md!}
 
 ## Quotes
 
-~~~
-> a multi-line
-quote on two lines
+{!quotes-intro.md!}
 
-normal text
+{!quotes-examples.md!}
 
-```quote
-A multi-paragraph
+!!! tip ""
 
-quote in two paragraphs
-```
-~~~
-
-![Markdown quotes](/static/images/help/markdown-quotes.png)
+    There is a handy option to [quote and reply](/help/quote-and-reply) to a
+    message in Zulip.
 
 ## Spoilers
 
-You can use spoilers to hide content that you do not want to be visible until
-the user interacts with it.
+{!spoilers-intro.md!}
 
-
-~~~
-Normal content in message
-
-```spoiler Spoiler header
-Spoiler content. These lines won't be visible until the user expands the spoiler.
-```
-~~~
-
-The spoiler will initially display in a collapsed form:
-
-![Spoiler collapsed](/static/images/help/spoiler-collapsed.png)
-
-Clicking the arrow will expand the spoiler content:
-
-![Spoiler expanded](/static/images/help/spoiler-expanded.png)
+{!spoilers-examples.md!}
 
 ## Emoji and emoticons
 

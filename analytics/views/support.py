@@ -35,6 +35,7 @@ from zerver.lib.subdomains import get_subdomain_from_hostname
 from zerver.lib.validator import check_bool, check_string_in, to_decimal, to_non_negative_int
 from zerver.models import (
     MultiuseInvite,
+    PreregistrationRealm,
     PreregistrationUser,
     Realm,
     RealmReactivationStatus,
@@ -53,6 +54,7 @@ if settings.BILLING_ENABLED:
         get_discount_for_realm,
         get_latest_seat_count,
         make_end_of_cycle_updates_if_needed,
+        switch_realm_from_standard_to_plus_plan,
         update_billing_method_of_current_plan,
         update_sponsorship_status,
         void_all_open_invoices,
@@ -120,10 +122,11 @@ def get_confirmations(
     return confirmation_dicts
 
 
-VALID_DOWNGRADE_METHODS = [
+VALID_MODIFY_PLAN_METHODS = [
     "downgrade_at_billing_cycle_end",
     "downgrade_now_without_additional_licenses",
     "downgrade_now_void_open_invoices",
+    "upgrade_to_plus",
 ]
 
 VALID_STATUS_VALUES = [
@@ -159,8 +162,8 @@ def support(
     ),
     sponsorship_pending: Optional[bool] = REQ(default=None, json_validator=check_bool),
     approve_sponsorship: bool = REQ(default=False, json_validator=check_bool),
-    downgrade_method: Optional[str] = REQ(
-        default=None, str_validator=check_string_in(VALID_DOWNGRADE_METHODS)
+    modify_plan: Optional[str] = REQ(
+        default=None, str_validator=check_string_in(VALID_MODIFY_PLAN_METHODS)
     ),
     scrub_realm: bool = REQ(default=False, json_validator=check_bool),
     query: Optional[str] = REQ("q", default=None),
@@ -250,23 +253,26 @@ def support(
         elif approve_sponsorship:
             do_approve_sponsorship(realm, acting_user=acting_user)
             context["success_message"] = f"Sponsorship approved for {realm.string_id}"
-        elif downgrade_method is not None:
-            if downgrade_method == "downgrade_at_billing_cycle_end":
+        elif modify_plan is not None:
+            if modify_plan == "downgrade_at_billing_cycle_end":
                 downgrade_at_the_end_of_billing_cycle(realm)
                 context[
                     "success_message"
                 ] = f"{realm.string_id} marked for downgrade at the end of billing cycle"
-            elif downgrade_method == "downgrade_now_without_additional_licenses":
+            elif modify_plan == "downgrade_now_without_additional_licenses":
                 downgrade_now_without_creating_additional_invoices(realm)
                 context[
                     "success_message"
                 ] = f"{realm.string_id} downgraded without creating additional invoices"
-            elif downgrade_method == "downgrade_now_void_open_invoices":
+            elif modify_plan == "downgrade_now_void_open_invoices":
                 downgrade_now_without_creating_additional_invoices(realm)
                 voided_invoices_count = void_all_open_invoices(realm)
                 context[
                     "success_message"
                 ] = f"{realm.string_id} downgraded and voided {voided_invoices_count} open invoices"
+            elif modify_plan == "upgrade_to_plus":
+                switch_realm_from_standard_to_plus_plan(realm)
+                context["success_message"] = f"{realm.string_id} upgraded to Plus"
         elif scrub_realm:
             do_scrub_realm(realm, acting_user=acting_user)
             context["success_message"] = f"{realm.string_id} scrubbed."
@@ -303,8 +309,17 @@ def support(
             user.id for user in PreregistrationUser.objects.filter(email__in=key_words)
         ]
         confirmations += get_confirmations(
-            [Confirmation.USER_REGISTRATION, Confirmation.INVITATION, Confirmation.REALM_CREATION],
+            [Confirmation.USER_REGISTRATION, Confirmation.INVITATION],
             preregistration_user_ids,
+            hostname=request.get_host(),
+        )
+
+        preregistration_realm_ids = [
+            user.id for user in PreregistrationRealm.objects.filter(email__in=key_words)
+        ]
+        confirmations += get_confirmations(
+            [Confirmation.REALM_CREATION],
+            preregistration_realm_ids,
             hostname=request.get_host(),
         )
 

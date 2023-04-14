@@ -20,11 +20,6 @@ module.exports = {
         "selector-class-pattern": null,
         "selector-id-pattern": null,
 
-        // Compatibility with older browsers
-        "alpha-value-notation": "number",
-        "color-function-notation": "legacy",
-        "hue-degree-notation": "number",
-
         // Limit language features
         "color-no-hex": true,
         "color-named": "never",
@@ -35,15 +30,14 @@ module.exports = {
             ],
         },
         "function-disallowed-list": [
-            // We use hsl(a) instead of rgb(a)
+            // We use hsl instead of rgb
             "rgb",
-            "rgba",
         ],
 
         // Zulip CSS should have no dependencies on external resources
         "function-url-no-scheme-relative": true,
         "function-url-scheme-allowed-list": [
-            "data", // Allow data URIs
+            "data", // Allow data URLs
         ],
     },
 };

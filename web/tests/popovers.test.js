@@ -32,7 +32,6 @@ const message_lists = mock_esm("../src/message_lists", {
 mock_esm("../src/stream_popover", {
     hide_stream_popover: noop,
     hide_topic_popover: noop,
-    hide_all_messages_popover: noop,
     hide_drafts_popover: noop,
     hide_streamlist_sidebar: noop,
 });
@@ -176,10 +175,9 @@ test_ui("sender_hover", ({override, mock_template}) => {
             user_time: undefined,
             user_type: $t({defaultMessage: "Member"}),
             user_circle_class: "user_circle_empty",
-            user_last_seen_time_status:
-                "translated: Last active: translated: More than 2 weeks ago",
+            user_last_seen_time_status: "translated: Active more than 2 weeks ago",
             pm_with_url: "#narrow/pm-with/42-Alice-Smith",
-            sent_by_uri: "#narrow/sender/42-Alice-Smith",
+            sent_by_url: "#narrow/sender/42-Alice-Smith",
             private_message_class: "respond_personal_button",
             show_manage_menu: true,
             is_me: false,

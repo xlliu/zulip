@@ -2,7 +2,7 @@
 
 const {strict: assert} = require("assert");
 
-const {visibility_policy} = require("../src/user_topics");
+const {all_visibility_policies} = require("../src/user_topics");
 
 const {zrequire} = require("./lib/namespace");
 const {run_test} = require("./lib/test");
@@ -56,29 +56,60 @@ test("edge_cases", () => {
 
 test("add_and_remove_mutes", () => {
     assert.ok(!user_topics.is_topic_muted(devel.stream_id, "java"));
-    user_topics.add_muted_topic(devel.stream_id, "java");
+    user_topics.update_user_topics(devel.stream_id, "java", all_visibility_policies.MUTED);
     assert.ok(user_topics.is_topic_muted(devel.stream_id, "java"));
 
     // test idempotency
-    user_topics.add_muted_topic(devel.stream_id, "java");
+    user_topics.update_user_topics(devel.stream_id, "java", all_visibility_policies.MUTED);
     assert.ok(user_topics.is_topic_muted(devel.stream_id, "java"));
 
-    user_topics.remove_muted_topic(devel.stream_id, "java");
+    user_topics.update_user_topics(devel.stream_id, "java", all_visibility_policies.INHERIT);
     assert.ok(!user_topics.is_topic_muted(devel.stream_id, "java"));
 
     // test idempotency
-    user_topics.remove_muted_topic(devel.stream_id, "java");
+    user_topics.update_user_topics(devel.stream_id, "java", all_visibility_policies.INHERIT);
     assert.ok(!user_topics.is_topic_muted(devel.stream_id, "java"));
 
     // test unknown stream is harmless too
-    user_topics.remove_muted_topic(unknown.stream_id, "java");
+    user_topics.update_user_topics(unknown.stream_id, "java", all_visibility_policies.INHERIT);
     assert.ok(!user_topics.is_topic_muted(unknown.stream_id, "java"));
+});
+
+test("add_and_remove_unmutes", () => {
+    assert.ok(!user_topics.is_topic_unmuted(devel.stream_id, "java"));
+    user_topics.update_user_topics(devel.stream_id, "java", all_visibility_policies.UNMUTED);
+    assert.ok(user_topics.is_topic_unmuted(devel.stream_id, "java"));
+
+    // test idempotency
+    user_topics.update_user_topics(devel.stream_id, "java", all_visibility_policies.UNMUTED);
+    assert.ok(user_topics.is_topic_unmuted(devel.stream_id, "java"));
+
+    user_topics.update_user_topics(devel.stream_id, "java", all_visibility_policies.INHERIT);
+    assert.ok(!user_topics.is_topic_unmuted(devel.stream_id, "java"));
+
+    // test idempotency
+    user_topics.update_user_topics(devel.stream_id, "java", all_visibility_policies.INHERIT);
+    assert.ok(!user_topics.is_topic_unmuted(devel.stream_id, "java"));
+
+    // test unknown stream is harmless too
+    user_topics.update_user_topics(unknown.stream_id, "java", all_visibility_policies.INHERIT);
+    assert.ok(!user_topics.is_topic_unmuted(unknown.stream_id, "java"));
 });
 
 test("get_mutes", () => {
     assert.deepEqual(user_topics.get_muted_topics(), []);
-    user_topics.add_muted_topic(office.stream_id, "gossip", 1577836800);
-    user_topics.add_muted_topic(devel.stream_id, "java", 1577836700);
+    user_topics.update_user_topics(
+        office.stream_id,
+        "gossip",
+        all_visibility_policies.MUTED,
+        1577836800,
+    );
+    user_topics.update_user_topics(
+        devel.stream_id,
+        "java",
+        all_visibility_policies.MUTED,
+        1577836700,
+    );
     const all_muted_topics = user_topics
         .get_muted_topics()
         .sort((a, b) => a.date_muted - b.date_muted);
@@ -113,19 +144,19 @@ test("set_user_topics", () => {
             stream_id: social.stream_id,
             topic_name: "breakfast",
             last_updated: "1577836800",
-            visibility_policy: visibility_policy.MUTED,
+            visibility_policy: all_visibility_policies.MUTED,
         },
         {
             stream_id: design.stream_id,
             topic_name: "typography",
             last_updated: "1577836800",
-            visibility_policy: visibility_policy.MUTED,
+            visibility_policy: all_visibility_policies.MUTED,
         },
         {
             stream_id: 999, // BOGUS STREAM ID
             topic_name: "random",
             last_updated: "1577836800",
-            visibility_policy: visibility_policy.MUTED,
+            visibility_policy: all_visibility_policies.MUTED,
         },
     ];
 
@@ -152,7 +183,7 @@ test("set_user_topics", () => {
         stream_id: design.stream_id,
         topic_name: "typography",
         last_updated: "1577836800",
-        visibility_policy: visibility_policy.INHERIT,
+        visibility_policy: all_visibility_policies.INHERIT,
     });
     assert.ok(!user_topics.is_topic_muted(design.stream_id, "typography"));
 });
@@ -165,7 +196,7 @@ test("case_insensitivity", () => {
             stream_id: social.stream_id,
             topic_name: "breakfast",
             last_updated: "1577836800",
-            visibility_policy: visibility_policy.MUTED,
+            visibility_policy: all_visibility_policies.MUTED,
         },
     ]);
     assert.ok(user_topics.is_topic_muted(social.stream_id, "breakfast"));

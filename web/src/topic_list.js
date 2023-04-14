@@ -7,7 +7,7 @@ import render_topic_list_item from "../templates/topic_list_item.hbs";
 
 import * as blueslip from "./blueslip";
 import * as narrow from "./narrow";
-import * as stream_popover from "./stream_popover";
+import * as popover_menus from "./popover_menus";
 import * as stream_topic_history from "./stream_topic_history";
 import * as stream_topic_history_util from "./stream_topic_history_util";
 import * as sub_store from "./sub_store";
@@ -35,7 +35,7 @@ export function update() {
 }
 
 export function clear() {
-    stream_popover.hide_topic_popover();
+    popover_menus.get_topic_menu_popover()?.hide();
 
     for (const widget of active_widgets.values()) {
         widget.remove();
@@ -125,7 +125,11 @@ export class TopicListWidget {
     }
 
     build_list(spinner) {
-        const list_info = topic_list_data.get_list_info(this.my_stream_id, zoomed);
+        const list_info = topic_list_data.get_list_info(
+            this.my_stream_id,
+            zoomed,
+            get_topic_search_term(),
+        );
 
         const num_possible_topics = list_info.num_possible_topics;
         const more_topics_unreads = list_info.more_topics_unreads;

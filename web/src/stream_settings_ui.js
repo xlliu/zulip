@@ -299,6 +299,7 @@ export function add_sub_to_table(sub) {
         row_for_stream_id(sub.stream_id).trigger("click");
         stream_create.reset_created_stream();
     }
+    update_empty_left_panel_message();
 }
 
 export function remove_stream(stream_id) {
@@ -306,6 +307,7 @@ export function remove_stream(stream_id) {
     // stream, but we let jQuery silently handle that.
     const $row = row_for_stream_id(stream_id);
     $row.remove();
+    update_empty_left_panel_message();
     if (hash_util.is_editing_stream(stream_id)) {
         stream_edit.open_edit_panel_empty();
     }
@@ -335,6 +337,9 @@ export function update_settings_for_subscribed(slim_sub) {
     // Display the swatch and subscription stream_settings
     stream_ui_updates.update_regular_sub_settings(sub);
     stream_ui_updates.update_permissions_banner(sub);
+
+    // Update whether there's any streams shown or not.
+    update_empty_left_panel_message();
 }
 
 export function show_active_stream_in_left_panel() {
@@ -367,6 +372,8 @@ export function update_settings_for_unsubscribed(slim_sub) {
     // Remove private streams from subscribed streams list.
     stream_ui_updates.update_stream_row_in_settings_tab(sub);
     stream_ui_updates.update_permissions_banner(sub);
+
+    update_empty_left_panel_message();
 }
 
 function triage_stream(left_panel_params, sub) {
@@ -430,17 +437,30 @@ export function render_left_panel_superset() {
     // For annoying legacy reasons we render all the subs we are
     // allowed to know about and put them in the DOM, then we do
     // a second pass where we filter/sort them.
-    const html = blueslip.measure_time("render left panel", () => {
-        const sub_rows = stream_settings_data.get_updated_unsorted_subs();
-
-        const template_data = {
-            subscriptions: sub_rows,
-        };
-
-        return render_browse_streams_list(template_data);
+    const html = render_browse_streams_list({
+        subscriptions: stream_settings_data.get_updated_unsorted_subs(),
     });
 
     ui.get_content_element($("#manage_streams_container .streams-list")).html(html);
+}
+
+export function update_empty_left_panel_message() {
+    // Check if we have any subscribed streams to decide whether to
+    // display a notice.
+    const has_subscribed_streams = stream_data.subscribed_subs().length > 0;
+
+    if (has_subscribed_streams) {
+        $(".no-streams-to-show").hide();
+        return;
+    }
+    if (is_subscribed_stream_tab_active()) {
+        $(".all_streams_tab_empty_text").hide();
+        $(".subscribed_streams_tab_empty_text").show();
+    } else {
+        $(".subscribed_streams_tab_empty_text").hide();
+        $(".all_streams_tab_empty_text").show();
+    }
+    $(".no-streams-to-show").show();
 }
 
 // LeftPanelParams { input: String, subscribed_only: Boolean, sort_order: String }
@@ -495,6 +515,7 @@ export function redraw_left_panel(left_panel_params = get_left_panel_params()) {
         );
     }
     maybe_reset_right_panel();
+    update_empty_left_panel_message();
 
     // return this for test convenience
     return [...buckets.name, ...buckets.desc];
@@ -633,7 +654,9 @@ export function setup_page(callback) {
 
         const opts = {
             widget_name: "new_stream_can_remove_subscribers_group_id",
-            data: user_groups.get_realm_user_groups_for_dropdown_list_widget(true, true, true),
+            data: user_groups.get_realm_user_groups_for_dropdown_list_widget(
+                "can_remove_subscribers_group",
+            ),
             default_text: $t({defaultMessage: "No user groups"}),
             include_current_item: false,
             value: user_groups.get_user_group_from_name("@role:administrators").id,
@@ -649,7 +672,7 @@ export function setup_page(callback) {
                 settings_data.user_can_create_private_streams() ||
                 settings_data.user_can_create_public_streams() ||
                 settings_data.user_can_create_web_public_streams(),
-            hide_all_streams: !should_list_all_streams(),
+            can_view_all_streams: !page_params.is_guest && should_list_all_streams(),
             max_stream_name_length: page_params.max_stream_name_length,
             max_stream_description_length: page_params.max_stream_description_length,
             is_owner: page_params.is_owner,
@@ -1166,7 +1189,7 @@ export function initialize() {
         // click; this fixes an issue where hitting "Enter" would
         // trigger this code path due to bootstrap magic.
         if (e.clientY !== 0) {
-            show_subs_pane.nothing_selected();
+            stream_edit.open_edit_panel_empty();
         }
     });
 

@@ -21,11 +21,11 @@ from zerver.lib.message import MessageDict, has_message_access, messages_for_ids
 from zerver.lib.test_classes import ZulipTestCase, get_topic_messages
 from zerver.lib.test_helpers import cache_tries_captured, queries_captured
 from zerver.lib.topic import RESOLVED_TOPIC_PREFIX, TOPIC_NAME
+from zerver.lib.url_encoding import near_stream_message_url
 from zerver.lib.user_topics import (
-    get_topic_mutes,
-    get_users_muting_topic,
-    set_topic_mutes,
-    topic_is_muted,
+    get_users_with_user_topic_visibility_policy,
+    set_topic_visibility_policy,
+    topic_has_visibility_policy,
 )
 from zerver.lib.utils import assert_is_not_none
 from zerver.models import (
@@ -1195,6 +1195,13 @@ class EditMessageTest(EditMessageTestCase):
             id_, "G", "The time limit for editing this message's topic has passed", "hamlet"
         )
 
+        # topic edit permissions apply on "no topic" messages as well
+        message.set_topic_name("(no topic)")
+        message.save()
+        do_edit_message_assert_error(
+            id_, "G", "The time limit for editing this message's topic has passed", "cordelia"
+        )
+
         # set the topic edit limit to two weeks
         do_set_realm_property(
             hamlet.realm,
@@ -1204,11 +1211,6 @@ class EditMessageTest(EditMessageTestCase):
         )
         do_edit_message_assert_success(id_, "G", "cordelia")
         do_edit_message_assert_success(id_, "H", "hamlet")
-
-        # anyone should be able to edit "no topic" indefinitely
-        message.set_topic_name("(no topic)")
-        message.save()
-        do_edit_message_assert_success(id_, "D", "cordelia")
 
     @mock.patch("zerver.actions.message_edit.send_event")
     def test_edit_topic_public_history_stream(self, mock_send_event: mock.MagicMock) -> None:
@@ -1292,7 +1294,7 @@ class EditMessageTest(EditMessageTestCase):
         users_to_be_notified = list(map(notify, [hamlet.id]))
         do_update_message_topic_success(hamlet, message, "Change again", users_to_be_notified)
 
-    @mock.patch("zerver.actions.message_edit.send_event")
+    @mock.patch("zerver.actions.user_topics.send_event")
     def test_edit_muted_topic(self, mock_send_event: mock.MagicMock) -> None:
         stream_name = "Stream 123"
         stream = self.make_stream(stream_name)
@@ -1310,35 +1312,53 @@ class EditMessageTest(EditMessageTestCase):
         self.subscribe(aaron, stream_name)
         self.login_user(aaron)
 
+        def assert_is_topic_muted(
+            user_profile: UserProfile,
+            stream_id: int,
+            topic_name: str,
+            *,
+            muted: bool,
+        ) -> None:
+            if muted:
+                self.assertTrue(
+                    topic_has_visibility_policy(
+                        user_profile, stream_id, topic_name, UserTopic.VisibilityPolicy.MUTED
+                    )
+                )
+            else:
+                self.assertFalse(
+                    topic_has_visibility_policy(
+                        user_profile, stream_id, topic_name, UserTopic.VisibilityPolicy.MUTED
+                    )
+                )
+
         already_muted_topic = "Already muted topic"
         muted_topics = [
             [stream_name, "Topic1"],
             [stream_name, "Topic2"],
             [stream_name, already_muted_topic],
         ]
-        set_topic_mutes(hamlet, muted_topics)
-        set_topic_mutes(cordelia, muted_topics)
+        set_topic_visibility_policy(hamlet, muted_topics, UserTopic.VisibilityPolicy.MUTED)
+        set_topic_visibility_policy(cordelia, muted_topics, UserTopic.VisibilityPolicy.MUTED)
 
-        # Returns the users that need to be notified when a message topic is changed
-        def notify(user_id: int) -> Dict[str, Any]:
-            um = UserMessage.objects.get(message=message_id)
-            if um.user_profile_id == user_id:
-                return {
-                    "id": user_id,
-                    "flags": um.flags_list(),
-                }
+        # users that need to be notified by send_event in the case of change-topic-name operation.
+        users_to_be_notified_via_muted_topics_event: List[int] = []
+        users_to_be_notified_via_user_topic_event: List[int] = []
+        for user_topic in get_users_with_user_topic_visibility_policy(stream.id, "Topic1"):
+            # We are appending the same data twice because 'user_topic' event notifies
+            # the user during delete and create operation.
+            users_to_be_notified_via_user_topic_event.append(user_topic.user_profile_id)
+            users_to_be_notified_via_user_topic_event.append(user_topic.user_profile_id)
+            # 'muted_topics' event notifies the user of muted topics during create
+            # operation only.
+            users_to_be_notified_via_muted_topics_event.append(user_topic.user_profile_id)
 
-            else:
-                return {
-                    "id": user_id,
-                    "flags": ["read"],
-                }
-
-        users_to_be_notified = list(map(notify, [hamlet.id, cordelia.id, aaron.id]))
         change_all_topic_name = "Topic 1 edited"
-
-        # This code path adds 9 (1 + 4/user with muted topics) + 1 to
-        # the number of database queries for moving a topic.
+        # Verify how many total database queries are required. We
+        # expect 6 queries (4/visibility_policy to update the muted
+        # state + 1/user with a UserTopic row for the events data)
+        # beyond what is typical were there not UserTopic records to
+        # update. Ideally, we'd eliminate the per-user component.
         with self.assert_database_query_count(19):
             check_update_message(
                 user_profile=hamlet,
@@ -1351,21 +1371,34 @@ class EditMessageTest(EditMessageTestCase):
                 content=None,
             )
 
-        for muting_user in get_users_muting_topic(stream.id, change_all_topic_name):
-            for user in users_to_be_notified:
-                if muting_user.id == user["id"]:
-                    user["muted_topics"] = get_topic_mutes(muting_user)
-                    break
+        # Extract the send_event call where event type is 'user_topic' or 'muted_topics.
+        # Here we assert that the expected users are notified properly.
+        users_notified_via_muted_topics_event: List[int] = []
+        users_notified_via_user_topic_event: List[int] = []
+        for call_args in mock_send_event.call_args_list:
+            (arg_realm, arg_event, arg_notified_users) = call_args[0]
+            if arg_event["type"] == "user_topic":
+                users_notified_via_user_topic_event.append(*arg_notified_users)
+            elif arg_event["type"] == "muted_topics":
+                users_notified_via_muted_topics_event.append(*arg_notified_users)
+        self.assertEqual(
+            sorted(users_notified_via_muted_topics_event),
+            sorted(users_to_be_notified_via_muted_topics_event),
+        )
+        self.assertEqual(
+            sorted(users_notified_via_user_topic_event),
+            sorted(users_to_be_notified_via_user_topic_event),
+        )
 
-        self.assertFalse(topic_is_muted(hamlet, stream.id, "Topic1"))
-        self.assertFalse(topic_is_muted(cordelia, stream.id, "Topic1"))
-        self.assertFalse(topic_is_muted(aaron, stream.id, "Topic1"))
-        self.assertTrue(topic_is_muted(hamlet, stream.id, "Topic2"))
-        self.assertTrue(topic_is_muted(cordelia, stream.id, "Topic2"))
-        self.assertFalse(topic_is_muted(aaron, stream.id, "Topic2"))
-        self.assertTrue(topic_is_muted(hamlet, stream.id, change_all_topic_name))
-        self.assertTrue(topic_is_muted(cordelia, stream.id, change_all_topic_name))
-        self.assertFalse(topic_is_muted(aaron, stream.id, change_all_topic_name))
+        assert_is_topic_muted(hamlet, stream.id, "Topic1", muted=False)
+        assert_is_topic_muted(cordelia, stream.id, "Topic1", muted=False)
+        assert_is_topic_muted(aaron, stream.id, "Topic1", muted=False)
+        assert_is_topic_muted(hamlet, stream.id, "Topic2", muted=True)
+        assert_is_topic_muted(cordelia, stream.id, "Topic2", muted=True)
+        assert_is_topic_muted(aaron, stream.id, "Topic2", muted=False)
+        assert_is_topic_muted(hamlet, stream.id, change_all_topic_name, muted=True)
+        assert_is_topic_muted(cordelia, stream.id, change_all_topic_name, muted=True)
+        assert_is_topic_muted(aaron, stream.id, change_all_topic_name, muted=False)
 
         change_later_topic_name = "Topic 1 edited again"
         check_update_message(
@@ -1378,8 +1411,8 @@ class EditMessageTest(EditMessageTestCase):
             send_notification_to_new_thread=False,
             content=None,
         )
-        self.assertFalse(topic_is_muted(hamlet, stream.id, change_all_topic_name))
-        self.assertTrue(topic_is_muted(hamlet, stream.id, change_later_topic_name))
+        assert_is_topic_muted(hamlet, stream.id, change_all_topic_name, muted=False)
+        assert_is_topic_muted(hamlet, stream.id, change_later_topic_name, muted=True)
 
         # Make sure we safely handle the case of the new topic being already muted.
         with self.assertLogs(level="INFO") as info_logs:
@@ -1400,8 +1433,8 @@ class EditMessageTest(EditMessageTestCase):
                 f"INFO:root:User {cordelia.id} tried to set visibility_policy to its current value of {UserTopic.VisibilityPolicy.MUTED}",
             },
         )
-        self.assertFalse(topic_is_muted(hamlet, stream.id, change_later_topic_name))
-        self.assertTrue(topic_is_muted(hamlet, stream.id, already_muted_topic))
+        assert_is_topic_muted(hamlet, stream.id, change_later_topic_name, muted=False)
+        assert_is_topic_muted(hamlet, stream.id, already_muted_topic, muted=True)
 
         change_one_topic_name = "Topic 1 edited change_one"
         check_update_message(
@@ -1414,8 +1447,8 @@ class EditMessageTest(EditMessageTestCase):
             send_notification_to_new_thread=False,
             content=None,
         )
-        self.assertTrue(topic_is_muted(hamlet, stream.id, change_one_topic_name))
-        self.assertFalse(topic_is_muted(hamlet, stream.id, change_later_topic_name))
+        assert_is_topic_muted(hamlet, stream.id, change_one_topic_name, muted=True)
+        assert_is_topic_muted(hamlet, stream.id, change_later_topic_name, muted=False)
 
         # Move topic between two public streams.
         desdemona = self.example_user("desdemona")
@@ -1428,10 +1461,10 @@ class EditMessageTest(EditMessageTestCase):
         muted_topics = [
             [stream_name, "New topic"],
         ]
-        set_topic_mutes(desdemona, muted_topics)
-        set_topic_mutes(cordelia, muted_topics)
+        set_topic_visibility_policy(desdemona, muted_topics, UserTopic.VisibilityPolicy.MUTED)
+        set_topic_visibility_policy(cordelia, muted_topics, UserTopic.VisibilityPolicy.MUTED)
 
-        with self.assert_database_query_count(30):
+        with self.assert_database_query_count(28):
             check_update_message(
                 user_profile=desdemona,
                 message_id=message_id,
@@ -1442,12 +1475,12 @@ class EditMessageTest(EditMessageTestCase):
                 content=None,
             )
 
-        self.assertFalse(topic_is_muted(desdemona, stream.id, "New topic"))
-        self.assertFalse(topic_is_muted(cordelia, stream.id, "New topic"))
-        self.assertFalse(topic_is_muted(aaron, stream.id, "New topic"))
-        self.assertTrue(topic_is_muted(desdemona, new_public_stream.id, "New topic"))
-        self.assertTrue(topic_is_muted(cordelia, new_public_stream.id, "New topic"))
-        self.assertFalse(topic_is_muted(aaron, new_public_stream.id, "New topic"))
+        assert_is_topic_muted(desdemona, stream.id, "New topic", muted=False)
+        assert_is_topic_muted(cordelia, stream.id, "New topic", muted=False)
+        assert_is_topic_muted(aaron, stream.id, "New topic", muted=False)
+        assert_is_topic_muted(desdemona, new_public_stream.id, "New topic", muted=True)
+        assert_is_topic_muted(cordelia, new_public_stream.id, "New topic", muted=True)
+        assert_is_topic_muted(aaron, new_public_stream.id, "New topic", muted=False)
 
         # Move topic to a private stream.
         message_id = self.send_stream_message(
@@ -1459,10 +1492,10 @@ class EditMessageTest(EditMessageTestCase):
         muted_topics = [
             [stream_name, "New topic"],
         ]
-        set_topic_mutes(desdemona, muted_topics)
-        set_topic_mutes(cordelia, muted_topics)
+        set_topic_visibility_policy(desdemona, muted_topics, UserTopic.VisibilityPolicy.MUTED)
+        set_topic_visibility_policy(cordelia, muted_topics, UserTopic.VisibilityPolicy.MUTED)
 
-        with self.assert_database_query_count(31):
+        with self.assert_database_query_count(33):
             check_update_message(
                 user_profile=desdemona,
                 message_id=message_id,
@@ -1476,12 +1509,12 @@ class EditMessageTest(EditMessageTestCase):
         # Cordelia is not subscribed to the private stream, so
         # Cordelia should have had the topic unmuted, while Desdemona
         # should have had her muted topic record moved.
-        self.assertFalse(topic_is_muted(desdemona, stream.id, "New topic"))
-        self.assertFalse(topic_is_muted(cordelia, stream.id, "New topic"))
-        self.assertFalse(topic_is_muted(aaron, stream.id, "New topic"))
-        self.assertTrue(topic_is_muted(desdemona, new_private_stream.id, "New topic"))
-        self.assertFalse(topic_is_muted(cordelia, new_private_stream.id, "New topic"))
-        self.assertFalse(topic_is_muted(aaron, new_private_stream.id, "New topic"))
+        assert_is_topic_muted(desdemona, stream.id, "New topic", muted=False)
+        assert_is_topic_muted(cordelia, stream.id, "New topic", muted=False)
+        assert_is_topic_muted(aaron, stream.id, "New topic", muted=False)
+        assert_is_topic_muted(desdemona, new_private_stream.id, "New topic", muted=True)
+        assert_is_topic_muted(cordelia, new_private_stream.id, "New topic", muted=False)
+        assert_is_topic_muted(aaron, new_private_stream.id, "New topic", muted=False)
 
         # Move topic between two public streams with change in topic name.
         desdemona = self.example_user("desdemona")
@@ -1492,10 +1525,10 @@ class EditMessageTest(EditMessageTestCase):
         muted_topics = [
             [stream_name, "New topic 2"],
         ]
-        set_topic_mutes(desdemona, muted_topics)
-        set_topic_mutes(cordelia, muted_topics)
+        set_topic_visibility_policy(desdemona, muted_topics, UserTopic.VisibilityPolicy.MUTED)
+        set_topic_visibility_policy(cordelia, muted_topics, UserTopic.VisibilityPolicy.MUTED)
 
-        with self.assert_database_query_count(30):
+        with self.assert_database_query_count(28):
             check_update_message(
                 user_profile=desdemona,
                 message_id=message_id,
@@ -1507,14 +1540,14 @@ class EditMessageTest(EditMessageTestCase):
                 content=None,
             )
 
-        self.assertFalse(topic_is_muted(desdemona, stream.id, "New topic 2"))
-        self.assertFalse(topic_is_muted(cordelia, stream.id, "New topic 2"))
-        self.assertFalse(topic_is_muted(aaron, stream.id, "New topic 2"))
-        self.assertTrue(topic_is_muted(desdemona, new_public_stream.id, "changed topic name"))
-        self.assertTrue(topic_is_muted(cordelia, new_public_stream.id, "changed topic name"))
-        self.assertFalse(topic_is_muted(aaron, new_public_stream.id, "changed topic name"))
+        assert_is_topic_muted(desdemona, stream.id, "New topic 2", muted=False)
+        assert_is_topic_muted(cordelia, stream.id, "New topic 2", muted=False)
+        assert_is_topic_muted(aaron, stream.id, "New topic 2", muted=False)
+        assert_is_topic_muted(desdemona, new_public_stream.id, "changed topic name", muted=True)
+        assert_is_topic_muted(cordelia, new_public_stream.id, "changed topic name", muted=True)
+        assert_is_topic_muted(aaron, new_public_stream.id, "changed topic name", muted=False)
 
-        # Moving only half the messages doesn't move MutedTopic records.
+        # Moving only half the messages doesn't move UserTopic records.
         second_message_id = self.send_stream_message(
             hamlet, stream_name, topic_name="changed topic name", content="Second message"
         )
@@ -1530,12 +1563,163 @@ class EditMessageTest(EditMessageTestCase):
                 content=None,
             )
 
-        self.assertTrue(topic_is_muted(desdemona, new_public_stream.id, "changed topic name"))
-        self.assertTrue(topic_is_muted(cordelia, new_public_stream.id, "changed topic name"))
-        self.assertFalse(topic_is_muted(aaron, new_public_stream.id, "changed topic name"))
-        self.assertFalse(topic_is_muted(desdemona, new_public_stream.id, "final topic name"))
-        self.assertFalse(topic_is_muted(cordelia, new_public_stream.id, "final topic name"))
-        self.assertFalse(topic_is_muted(aaron, new_public_stream.id, "final topic name"))
+        assert_is_topic_muted(desdemona, new_public_stream.id, "changed topic name", muted=True)
+        assert_is_topic_muted(cordelia, new_public_stream.id, "changed topic name", muted=True)
+        assert_is_topic_muted(aaron, new_public_stream.id, "changed topic name", muted=False)
+        assert_is_topic_muted(desdemona, new_public_stream.id, "final topic name", muted=False)
+        assert_is_topic_muted(cordelia, new_public_stream.id, "final topic name", muted=False)
+        assert_is_topic_muted(aaron, new_public_stream.id, "final topic name", muted=False)
+
+    @mock.patch("zerver.actions.user_topics.send_event")
+    def test_edit_unmuted_topic(self, mock_send_event: mock.MagicMock) -> None:
+        stream_name = "Stream 123"
+        stream = self.make_stream(stream_name)
+
+        hamlet = self.example_user("hamlet")
+        cordelia = self.example_user("cordelia")
+        aaron = self.example_user("aaron")
+        othello = self.example_user("othello")
+
+        def assert_has_visibility_policy(
+            user_profile: UserProfile,
+            topic_name: str,
+            visibility_policy: int,
+            *,
+            expected: bool,
+        ) -> None:
+            if expected:
+                self.assertTrue(
+                    topic_has_visibility_policy(
+                        user_profile, stream.id, topic_name, visibility_policy
+                    )
+                )
+            else:
+                self.assertFalse(
+                    topic_has_visibility_policy(
+                        user_profile, stream.id, topic_name, visibility_policy
+                    )
+                )
+
+        self.subscribe(hamlet, stream_name)
+        self.login_user(hamlet)
+        message_id = self.send_stream_message(
+            hamlet, stream_name, topic_name="Topic1", content="Hello World"
+        )
+
+        self.subscribe(cordelia, stream_name)
+        self.login_user(cordelia)
+        self.subscribe(aaron, stream_name)
+        self.login_user(aaron)
+        self.subscribe(othello, stream_name)
+        self.login_user(othello)
+
+        # Initially, hamlet and othello set visibility_policy as UNMUTED for 'Topic1' and 'Topic2',
+        # cordelia sets visibility_policy as MUTED for 'Topic1' and 'Topic2', while
+        # aaron doesn't have a visibility_policy set for 'Topic1' or 'Topic2'.
+        #
+        # After moving messages from 'Topic1' to 'Topic 1 edited', the expected behaviour is:
+        # hamlet and othello have UNMUTED 'Topic 1 edited' and no visibility_policy set for 'Topic1'
+        # cordelia has MUTED 'Topic 1 edited' and no visibility_policy set for 'Topic1'
+        #
+        # There is no change in visibility_policy configurations for 'Topic2', i.e.
+        # hamlet and othello have UNMUTED 'Topic2' + cordelia has MUTED 'Topic2'
+        # aaron still doesn't have visibility_policy set for any topic.
+        #
+        # Note: We have used two users with UNMUTED 'Topic1' to verify that the query count
+        # doesn't increase (in order to update UserTopic records) with an increase in users.
+        # (We are using bulk database operations.)
+        # 1 query/user is added in order to send muted_topics event.(which will be deprecated)
+        topics = [
+            [stream_name, "Topic1"],
+            [stream_name, "Topic2"],
+        ]
+        set_topic_visibility_policy(hamlet, topics, UserTopic.VisibilityPolicy.UNMUTED)
+        set_topic_visibility_policy(cordelia, topics, UserTopic.VisibilityPolicy.MUTED)
+        set_topic_visibility_policy(othello, topics, UserTopic.VisibilityPolicy.UNMUTED)
+
+        # users that need to be notified by send_event in the case of change-topic-name operation.
+        users_to_be_notified_via_muted_topics_event: List[int] = []
+        users_to_be_notified_via_user_topic_event: List[int] = []
+        for user_topic in get_users_with_user_topic_visibility_policy(stream.id, "Topic1"):
+            # We are appending the same data twice because 'user_topic' event notifies
+            # the user during delete and create operation.
+            users_to_be_notified_via_user_topic_event.append(user_topic.user_profile_id)
+            users_to_be_notified_via_user_topic_event.append(user_topic.user_profile_id)
+            # 'muted_topics' event notifies the user of muted topics during create
+            # operation only.
+            users_to_be_notified_via_muted_topics_event.append(user_topic.user_profile_id)
+
+        change_all_topic_name = "Topic 1 edited"
+        with self.assert_database_query_count(24):
+            check_update_message(
+                user_profile=hamlet,
+                message_id=message_id,
+                stream_id=None,
+                topic_name=change_all_topic_name,
+                propagate_mode="change_all",
+                send_notification_to_old_thread=False,
+                send_notification_to_new_thread=False,
+                content=None,
+            )
+
+        # Extract the send_event call where event type is 'user_topic' or 'muted_topics.
+        # Here we assert that the expected users are notified properly.
+        users_notified_via_muted_topics_event: List[int] = []
+        users_notified_via_user_topic_event: List[int] = []
+        for call_args in mock_send_event.call_args_list:
+            (arg_realm, arg_event, arg_notified_users) = call_args[0]
+            if arg_event["type"] == "user_topic":
+                users_notified_via_user_topic_event.append(*arg_notified_users)
+            elif arg_event["type"] == "muted_topics":
+                users_notified_via_muted_topics_event.append(*arg_notified_users)
+        self.assertEqual(
+            sorted(users_notified_via_muted_topics_event),
+            sorted(users_to_be_notified_via_muted_topics_event),
+        )
+        self.assertEqual(
+            sorted(users_notified_via_user_topic_event),
+            sorted(users_to_be_notified_via_user_topic_event),
+        )
+
+        # No visibility_policy set for 'Topic1'
+        assert_has_visibility_policy(
+            hamlet, "Topic1", UserTopic.VisibilityPolicy.UNMUTED, expected=False
+        )
+        assert_has_visibility_policy(
+            cordelia, "Topic1", UserTopic.VisibilityPolicy.MUTED, expected=False
+        )
+        assert_has_visibility_policy(
+            othello, "Topic1", UserTopic.VisibilityPolicy.UNMUTED, expected=False
+        )
+        assert_has_visibility_policy(
+            aaron, "Topic1", UserTopic.VisibilityPolicy.UNMUTED, expected=False
+        )
+        # No change in visibility_policy configurations for 'Topic2'
+        assert_has_visibility_policy(
+            hamlet, "Topic2", UserTopic.VisibilityPolicy.UNMUTED, expected=True
+        )
+        assert_has_visibility_policy(
+            cordelia, "Topic2", UserTopic.VisibilityPolicy.MUTED, expected=True
+        )
+        assert_has_visibility_policy(
+            othello, "Topic2", UserTopic.VisibilityPolicy.UNMUTED, expected=True
+        )
+        assert_has_visibility_policy(
+            aaron, "Topic2", UserTopic.VisibilityPolicy.UNMUTED, expected=False
+        )
+        # UserTopic records moved to 'Topic 1 edited' after move-topic operation.
+        assert_has_visibility_policy(
+            hamlet, change_all_topic_name, UserTopic.VisibilityPolicy.UNMUTED, expected=True
+        )
+        assert_has_visibility_policy(
+            cordelia, change_all_topic_name, UserTopic.VisibilityPolicy.MUTED, expected=True
+        )
+        assert_has_visibility_policy(
+            othello, change_all_topic_name, UserTopic.VisibilityPolicy.UNMUTED, expected=True
+        )
+        assert_has_visibility_policy(
+            aaron, change_all_topic_name, UserTopic.VisibilityPolicy.MUTED, expected=False
+        )
 
     @mock.patch("zerver.actions.message_edit.send_event")
     def test_wildcard_mention(self, mock_send_event: mock.MagicMock) -> None:
@@ -1785,6 +1969,215 @@ class EditMessageTest(EditMessageTestCase):
         self.check_topic(id3, topic_name="topiC1")
         self.check_topic(id4, topic_name="edited")
 
+    def test_change_all_propagate_mode_for_moving_old_messages(self) -> None:
+        user_profile = self.example_user("hamlet")
+        id1 = self.send_stream_message(user_profile, "Denmark", topic_name="topic1")
+        id2 = self.send_stream_message(user_profile, "Denmark", topic_name="topic1")
+        id3 = self.send_stream_message(user_profile, "Denmark", topic_name="topic1")
+        id4 = self.send_stream_message(user_profile, "Denmark", topic_name="topic1")
+        self.send_stream_message(user_profile, "Denmark", topic_name="topic1")
+
+        do_set_realm_property(
+            user_profile.realm,
+            "move_messages_between_streams_policy",
+            Realm.POLICY_MEMBERS_ONLY,
+            acting_user=None,
+        )
+
+        message = Message.objects.get(id=id1)
+        message.date_sent = message.date_sent - datetime.timedelta(days=10)
+        message.save()
+
+        message = Message.objects.get(id=id2)
+        message.date_sent = message.date_sent - datetime.timedelta(days=8)
+        message.save()
+
+        message = Message.objects.get(id=id3)
+        message.date_sent = message.date_sent - datetime.timedelta(days=5)
+        message.save()
+
+        verona = get_stream("Verona", user_profile.realm)
+        denmark = get_stream("Denmark", user_profile.realm)
+        old_topic = "topic1"
+        old_stream = denmark
+
+        def test_moving_all_topic_messages(
+            new_topic: Optional[str] = None, new_stream: Optional[Stream] = None
+        ) -> None:
+            self.login("hamlet")
+            params_dict: Dict[str, Union[str, int]] = {
+                "propagate_mode": "change_all",
+                "send_notification_to_new_thread": "false",
+            }
+
+            if new_topic is not None:
+                params_dict["topic"] = new_topic
+            else:
+                new_topic = old_topic
+
+            if new_stream is not None:
+                params_dict["stream_id"] = new_stream.id
+            else:
+                new_stream = old_stream
+
+            result = self.client_patch(
+                f"/json/messages/{id4}",
+                params_dict,
+            )
+            self.assert_json_error(
+                result,
+                "You only have permission to move the 3/5 most recent messages in this topic.",
+            )
+            # Check message count in old topic and/or stream.
+            messages = get_topic_messages(user_profile, old_stream, old_topic)
+            self.assert_length(messages, 5)
+
+            # Check message count in new topic and/or stream.
+            messages = get_topic_messages(user_profile, new_stream, new_topic)
+            self.assert_length(messages, 0)
+
+            json = orjson.loads(result.content)
+            first_message_id_allowed_to_move = json["first_message_id_allowed_to_move"]
+
+            params_dict["propagate_mode"] = "change_later"
+            result = self.client_patch(
+                f"/json/messages/{first_message_id_allowed_to_move}",
+                params_dict,
+            )
+            self.assert_json_success(result)
+
+            # Check message count in old topic and/or stream.
+            messages = get_topic_messages(user_profile, old_stream, old_topic)
+            self.assert_length(messages, 2)
+
+            # Check message count in new topic and/or stream.
+            messages = get_topic_messages(user_profile, new_stream, new_topic)
+            self.assert_length(messages, 3)
+
+            self.login("shiva")
+            # Move these messages to the original topic and stream, to test the case
+            # when user is moderator.
+            result = self.client_patch(
+                f"/json/messages/{id4}",
+                {
+                    "topic": old_topic,
+                    "stream_id": old_stream.id,
+                    "propagate_mode": "change_all",
+                    "send_notification_to_new_thread": "false",
+                },
+            )
+
+            params_dict["propagate_mode"] = "change_all"
+            result = self.client_patch(
+                f"/json/messages/{id4}",
+                params_dict,
+            )
+            self.assert_json_success(result)
+
+            # Check message count in old topic and/or stream.
+            messages = get_topic_messages(user_profile, old_stream, old_topic)
+            self.assert_length(messages, 0)
+
+            # Check message count in new topic and/or stream.
+            messages = get_topic_messages(user_profile, new_stream, new_topic)
+            self.assert_length(messages, 5)
+
+        # Test only topic editing case.
+        test_moving_all_topic_messages(new_topic="topic edited")
+
+        # Move these messages to the original topic to test the next case.
+        self.client_patch(
+            f"/json/messages/{id4}",
+            {
+                "topic": old_topic,
+                "propagate_mode": "change_all",
+                "send_notification_to_new_thread": "false",
+            },
+        )
+
+        # Test only stream editing case
+        test_moving_all_topic_messages(new_stream=verona)
+
+        # Move these messages to the original stream to test the next case.
+        self.client_patch(
+            f"/json/messages/{id4}",
+            {
+                "stream_id": denmark.id,
+                "propagate_mode": "change_all",
+                "send_notification_to_new_thread": "false",
+            },
+        )
+
+        # Set time limit for moving messages between streams to 2 weeks.
+        do_set_realm_property(
+            user_profile.realm,
+            "move_messages_between_streams_limit_seconds",
+            604800 * 2,
+            acting_user=None,
+        )
+
+        # Test editing both topic and stream together.
+        test_moving_all_topic_messages(new_topic="edited", new_stream=verona)
+
+    def test_change_all_propagate_mode_for_moving_from_stream_with_restricted_history(self) -> None:
+        self.make_stream("privatestream", invite_only=True, history_public_to_subscribers=False)
+        iago = self.example_user("iago")
+        cordelia = self.example_user("cordelia")
+        self.subscribe(iago, "privatestream")
+        self.subscribe(cordelia, "privatestream")
+        id1 = self.send_stream_message(iago, "privatestream", topic_name="topic1")
+        id2 = self.send_stream_message(iago, "privatestream", topic_name="topic1")
+
+        hamlet = self.example_user("hamlet")
+        self.subscribe(hamlet, "privatestream")
+        id3 = self.send_stream_message(iago, "privatestream", topic_name="topic1")
+        id4 = self.send_stream_message(hamlet, "privatestream", topic_name="topic1")
+        self.send_stream_message(hamlet, "privatestream", topic_name="topic1")
+
+        message = Message.objects.get(id=id1)
+        message.date_sent = message.date_sent - datetime.timedelta(days=10)
+        message.save()
+
+        message = Message.objects.get(id=id2)
+        message.date_sent = message.date_sent - datetime.timedelta(days=9)
+        message.save()
+
+        message = Message.objects.get(id=id3)
+        message.date_sent = message.date_sent - datetime.timedelta(days=8)
+        message.save()
+
+        message = Message.objects.get(id=id4)
+        message.date_sent = message.date_sent - datetime.timedelta(days=6)
+        message.save()
+
+        self.login("hamlet")
+        result = self.client_patch(
+            f"/json/messages/{id4}",
+            {
+                "topic": "edited",
+                "propagate_mode": "change_all",
+                "send_notification_to_new_thread": "false",
+            },
+        )
+        self.assert_json_error(
+            result,
+            "You only have permission to move the 2/3 most recent messages in this topic.",
+        )
+
+        self.login("cordelia")
+        result = self.client_patch(
+            f"/json/messages/{id4}",
+            {
+                "topic": "edited",
+                "propagate_mode": "change_all",
+                "send_notification_to_new_thread": "false",
+            },
+        )
+        self.assert_json_error(
+            result,
+            "You only have permission to move the 2/5 most recent messages in this topic.",
+        )
+
     def test_move_message_to_stream(self) -> None:
         (user_profile, old_stream, new_stream, msg_id, msg_id_lt) = self.prepare_move_topics(
             "iago",
@@ -1820,6 +2213,50 @@ class EditMessageTest(EditMessageTestCase):
         self.assertEqual(
             messages[3].content,
             f"This topic was moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
+    def test_move_message_to_preexisting_topic(self) -> None:
+        (user_profile, old_stream, new_stream, msg_id, msg_id_lt) = self.prepare_move_topics(
+            "iago",
+            "test move stream",
+            "new stream",
+            "test",
+            # Set the user's translation language to German to test that
+            # it is overridden by the realm's default language.
+            "de",
+        )
+
+        self.send_stream_message(
+            sender=self.example_user("iago"),
+            stream_name="new stream",
+            topic_name="test",
+            content="Always here",
+        )
+
+        result = self.client_patch(
+            f"/json/messages/{msg_id}",
+            {
+                "stream_id": new_stream.id,
+                "propagate_mode": "change_all",
+                "send_notification_to_old_thread": "true",
+            },
+            HTTP_ACCEPT_LANGUAGE="de",
+        )
+
+        self.assert_json_success(result)
+
+        messages = get_topic_messages(user_profile, old_stream, "test")
+        self.assert_length(messages, 1)
+        self.assertEqual(
+            messages[0].content,
+            f"This topic was moved to #**new stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
+        messages = get_topic_messages(user_profile, new_stream, "test")
+        self.assert_length(messages, 5)
+        self.assertEqual(
+            messages[4].content,
+            f"3 messages were moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
         )
 
     def test_move_message_realm_admin_cant_move_to_another_realm(self) -> None:
@@ -1971,6 +2408,44 @@ class EditMessageTest(EditMessageTestCase):
             f"2 messages were moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
         )
 
+    def test_move_message_to_preexisting_topic_change_later(self) -> None:
+        (user_profile, old_stream, new_stream, msg_id, msg_id_later) = self.prepare_move_topics(
+            "iago", "test move stream", "new stream", "test"
+        )
+
+        self.send_stream_message(
+            sender=self.example_user("iago"),
+            stream_name="new stream",
+            topic_name="test",
+            content="Always here",
+        )
+
+        result = self.client_patch(
+            f"/json/messages/{msg_id_later}",
+            {
+                "stream_id": new_stream.id,
+                "propagate_mode": "change_later",
+                "send_notification_to_old_thread": "true",
+            },
+        )
+        self.assert_json_success(result)
+
+        messages = get_topic_messages(user_profile, old_stream, "test")
+        self.assert_length(messages, 2)
+        self.assertEqual(messages[0].id, msg_id)
+        self.assertEqual(
+            messages[1].content,
+            f"2 messages were moved from this topic to #**new stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
+        messages = get_topic_messages(user_profile, new_stream, "test")
+        self.assert_length(messages, 4)
+        self.assertEqual(messages[0].id, msg_id_later)
+        self.assertEqual(
+            messages[3].content,
+            f"2 messages were moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
     def test_move_message_to_stream_change_later_all_moved(self) -> None:
         (user_profile, old_stream, new_stream, msg_id, msg_id_later) = self.prepare_move_topics(
             "iago", "test move stream", "new stream", "test"
@@ -2001,6 +2476,43 @@ class EditMessageTest(EditMessageTestCase):
             f"This topic was moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
         )
 
+    def test_move_message_to_preexisting_topic_change_later_all_moved(self) -> None:
+        (user_profile, old_stream, new_stream, msg_id, msg_id_later) = self.prepare_move_topics(
+            "iago", "test move stream", "new stream", "test"
+        )
+
+        self.send_stream_message(
+            sender=self.example_user("iago"),
+            stream_name="new stream",
+            topic_name="test",
+            content="Always here",
+        )
+
+        result = self.client_patch(
+            f"/json/messages/{msg_id}",
+            {
+                "stream_id": new_stream.id,
+                "propagate_mode": "change_later",
+                "send_notification_to_old_thread": "true",
+            },
+        )
+        self.assert_json_success(result)
+
+        messages = get_topic_messages(user_profile, old_stream, "test")
+        self.assert_length(messages, 1)
+        self.assertEqual(
+            messages[0].content,
+            f"This topic was moved to #**new stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
+        messages = get_topic_messages(user_profile, new_stream, "test")
+        self.assert_length(messages, 5)
+        self.assertEqual(messages[0].id, msg_id)
+        self.assertEqual(
+            messages[4].content,
+            f"3 messages were moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
     def test_move_message_to_stream_change_one(self) -> None:
         (user_profile, old_stream, new_stream, msg_id, msg_id_later) = self.prepare_move_topics(
             "iago", "test move stream", "new stream", "test"
@@ -2025,11 +2537,63 @@ class EditMessageTest(EditMessageTestCase):
         )
 
         messages = get_topic_messages(user_profile, new_stream, "test")
+        message = {
+            "id": msg_id_later,
+            "stream_id": new_stream.id,
+            "display_recipient": new_stream.name,
+            "topic": "test",
+        }
+        moved_message_link = near_stream_message_url(messages[1].realm, message)
         self.assert_length(messages, 2)
         self.assertEqual(messages[0].id, msg_id_later)
         self.assertEqual(
             messages[1].content,
-            f"A message was moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
+            f"[A message]({moved_message_link}) was moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
+    def test_move_message_to_preexisting_topic_change_one(self) -> None:
+        (user_profile, old_stream, new_stream, msg_id, msg_id_later) = self.prepare_move_topics(
+            "iago", "test move stream", "new stream", "test"
+        )
+
+        self.send_stream_message(
+            sender=self.example_user("iago"),
+            stream_name="new stream",
+            topic_name="test",
+            content="Always here",
+        )
+
+        result = self.client_patch(
+            "/json/messages/" + str(msg_id_later),
+            {
+                "stream_id": new_stream.id,
+                "propagate_mode": "change_one",
+                "send_notification_to_old_thread": "true",
+            },
+        )
+        self.assert_json_success(result)
+
+        messages = get_topic_messages(user_profile, old_stream, "test")
+        self.assert_length(messages, 3)
+        self.assertEqual(messages[0].id, msg_id)
+        self.assertEqual(
+            messages[2].content,
+            f"A message was moved from this topic to #**new stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
+        messages = get_topic_messages(user_profile, new_stream, "test")
+        message = {
+            "id": msg_id_later,
+            "stream_id": new_stream.id,
+            "display_recipient": new_stream.name,
+            "topic": "test",
+        }
+        moved_message_link = near_stream_message_url(messages[2].realm, message)
+        self.assert_length(messages, 3)
+        self.assertEqual(messages[0].id, msg_id_later)
+        self.assertEqual(
+            messages[2].content,
+            f"[A message]({moved_message_link}) was moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
         )
 
     def test_move_message_to_stream_change_all(self) -> None:
@@ -2060,6 +2624,43 @@ class EditMessageTest(EditMessageTestCase):
         self.assertEqual(
             messages[3].content,
             f"This topic was moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
+    def test_move_message_to_preexisting_topic_change_all(self) -> None:
+        (user_profile, old_stream, new_stream, msg_id, msg_id_later) = self.prepare_move_topics(
+            "iago", "test move stream", "new stream", "test"
+        )
+
+        self.send_stream_message(
+            sender=self.example_user("iago"),
+            stream_name="new stream",
+            topic_name="test",
+            content="Always here",
+        )
+
+        result = self.client_patch(
+            "/json/messages/" + str(msg_id_later),
+            {
+                "stream_id": new_stream.id,
+                "propagate_mode": "change_all",
+                "send_notification_to_old_thread": "true",
+            },
+        )
+        self.assert_json_success(result)
+
+        messages = get_topic_messages(user_profile, old_stream, "test")
+        self.assert_length(messages, 1)
+        self.assertEqual(
+            messages[0].content,
+            f"This topic was moved to #**new stream>test** by @_**Iago|{user_profile.id}**.",
+        )
+
+        messages = get_topic_messages(user_profile, new_stream, "test")
+        self.assert_length(messages, 5)
+        self.assertEqual(messages[0].id, msg_id)
+        self.assertEqual(
+            messages[4].content,
+            f"3 messages were moved here from #**test move stream>test** by @_**Iago|{user_profile.id}**.",
         )
 
     def test_move_message_between_streams_policy_setting(self) -> None:
@@ -2380,7 +2981,7 @@ class EditMessageTest(EditMessageTestCase):
             "iago", "test move stream", "new stream", "test"
         )
 
-        with self.assert_database_query_count(53), cache_tries_captured() as cache_tries:
+        with self.assert_database_query_count(55), cache_tries_captured() as cache_tries:
             result = self.client_patch(
                 f"/json/messages/{msg_id}",
                 {
@@ -2758,11 +3359,18 @@ class EditMessageTest(EditMessageTestCase):
         self.assertEqual(messages[1].content, "Third")
 
         messages = get_topic_messages(user_profile, stream, "edited")
+        message = {
+            "id": msg_id,
+            "stream_id": stream.id,
+            "display_recipient": stream.name,
+            "topic": "edited",
+        }
+        moved_message_link = near_stream_message_url(messages[1].realm, message)
         self.assert_length(messages, 2)
         self.assertEqual(messages[0].content, "First")
         self.assertEqual(
             messages[1].content,
-            f"A message was moved here from #**public stream>test** by @_**Iago|{user_profile.id}**.",
+            f"[A message]({moved_message_link}) was moved here from #**public stream>test** by @_**Iago|{user_profile.id}**.",
         )
 
     def test_notify_old_topics_after_message_move(self) -> None:
@@ -2834,11 +3442,18 @@ class EditMessageTest(EditMessageTestCase):
         )
 
         messages = get_topic_messages(user_profile, stream, "edited")
+        message = {
+            "id": msg_id,
+            "stream_id": stream.id,
+            "display_recipient": stream.name,
+            "topic": "edited",
+        }
+        moved_message_link = near_stream_message_url(messages[0].realm, message)
         self.assert_length(messages, 2)
         self.assertEqual(messages[0].content, "First")
         self.assertEqual(
             messages[1].content,
-            f"A message was moved here from #**public stream>test** by @_**Iago|{user_profile.id}**.",
+            f"[A message]({moved_message_link}) was moved here from #**public stream>test** by @_**Iago|{user_profile.id}**.",
         )
 
     def test_notify_no_topic_after_message_move(self) -> None:
@@ -3499,7 +4114,7 @@ class DeleteMessageTest(ZulipTestCase):
         self.send_stream_message(hamlet, "Denmark")
         message = self.get_last_message()
 
-        with self.tornado_redirected_to_list([], expected_num_events=1):
+        with self.capture_send_event_calls(expected_num_events=1):
             with mock.patch("zerver.actions.message_edit.send_event") as m:
                 m.side_effect = AssertionError(
                     "Events should be sent only after the transaction commits."

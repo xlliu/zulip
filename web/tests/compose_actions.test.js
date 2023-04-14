@@ -126,8 +126,8 @@ test("start", ({override, override_rewire}) => {
     let opts = {};
     start("stream", opts);
 
-    assert_visible("#stream-message");
-    assert_hidden("#private-message");
+    assert_visible("#compose-stream-recipient");
+    assert_hidden("#compose-private-recipient");
 
     assert.equal(compose_state.stream_name(), "stream1");
     assert.equal(compose_state.topic(), "topic1");
@@ -187,8 +187,8 @@ test("start", ({override, override_rewire}) => {
 
     start("private", opts);
 
-    assert_hidden("#stream-message");
-    assert_visible("#private-message");
+    assert_hidden("#compose-stream-recipient");
+    assert_visible("#compose-private-recipient");
 
     assert.equal(compose_state.private_message_recipient(), "foo@example.com");
     assert.equal($("#compose-textarea").val(), "hello");
@@ -224,7 +224,7 @@ test("start", ({override, override_rewire}) => {
     assert.ok(abort_xhr_called);
     assert.ok(pill_cleared);
     assert_visible("#compose_controls");
-    assert_hidden("#private-message");
+    assert_hidden("#compose-private-recipient");
     assert.ok(!compose_state.composing());
 });
 
@@ -359,8 +359,9 @@ test("quote_and_reply", ({disallow, override, override_rewire}) => {
 
     override(message_lists.current, "selected_id", () => 100);
 
-    override(compose_ui, "insert_syntax_and_focus", (syntax) => {
-        assert.equal(syntax, "translated: [Quoting…]\n");
+    override(compose_ui, "insert_syntax_and_focus", (syntax, $textarea, mode) => {
+        assert.equal(syntax, "translated: [Quoting…]");
+        assert.equal(mode, "block");
     });
 
     const opts = {

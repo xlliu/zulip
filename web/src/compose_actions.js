@@ -39,8 +39,8 @@ function hide_box() {
     // This is the main hook for saving drafts when closing the compose box.
     drafts.update_draft();
     blur_compose_inputs();
-    $("#stream-message").hide();
-    $("#private-message").hide();
+    $("#compose-stream-recipient").hide();
+    $("#compose-private-recipient").hide();
     $(".new_message_textarea").css("min-height", "");
     compose_fade.clear_compose();
     $(".message_comp").hide();
@@ -80,13 +80,13 @@ export function set_focus(msg_type, opts) {
 
 function show_compose_box(msg_type, opts) {
     if (msg_type === "stream") {
-        $("#private-message").hide();
-        $("#stream-message").show();
+        $("#compose-private-recipient").hide();
+        $("#compose-stream-recipient").show();
         $("#stream_toggle").addClass("active");
         $("#private_message_toggle").removeClass("active");
     } else {
-        $("#private-message").show();
-        $("#stream-message").hide();
+        $("#compose-private-recipient").show();
+        $("#compose-stream-recipient").hide();
         $("#stream_toggle").removeClass("active");
         $("#private_message_toggle").addClass("active");
     }
@@ -133,6 +133,7 @@ export function autosize_message_content() {
 }
 
 export function expand_compose_box() {
+    $("#compose_close").attr("data-tooltip-template-id", "compose_close_tooltip_template");
     $("#compose_close").show();
     $("#compose_controls").hide();
     $(".message_comp").show();
@@ -199,7 +200,7 @@ export function complete_starting_tasks(msg_type, opts) {
 
     maybe_scroll_up_selected_message();
     compose_fade.start_compose(msg_type);
-    stream_bar.decorate(opts.stream, $("#stream-message .message_header_stream"), true);
+    stream_bar.decorate(opts.stream, $("#compose-stream-recipient .message_header_stream"), true);
     $(document).trigger(new $.Event("compose_started.zulip", opts));
     update_placeholder_text();
     update_narrow_to_recipient_visibility();
@@ -536,25 +537,17 @@ export function quote_and_reply(opts) {
     const message = message_lists.current.selected_message();
     const quoting_placeholder = $t({defaultMessage: "[Quoting…]"});
 
-    if (compose_state.has_message_content()) {
-        // The user already started typing a message,
-        // so we won't re-open the compose box.
+    if (!compose_state.has_message_content()) {
+        // The user has not started typing a message,
+        // so we will re-open the compose box.
         // (If you did re-open the compose box, you
         // are prone to glitches where you select the
         // text, plus it's a complicated codepath that
         // can have other unintended consequences.)
-
-        if ($textarea.caret() !== 0) {
-            // Insert a newline before quoted message if there is
-            // already some content in the compose box and quoted
-            // message is not being inserted at the beginning.
-            $textarea.caret("\n");
-        }
-    } else {
         respond_to_message(opts);
     }
 
-    compose_ui.insert_syntax_and_focus(quoting_placeholder + "\n", $textarea);
+    compose_ui.insert_syntax_and_focus(quoting_placeholder, $textarea, "block");
 
     function replace_content(message) {
         // Final message looks like:

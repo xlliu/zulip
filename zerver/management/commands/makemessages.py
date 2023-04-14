@@ -150,7 +150,6 @@ class Command(makemessages.Command):
         try:
             ignore_patterns = options.get("ignore_patterns", [])
             ignore_patterns.append("docs/*")
-            ignore_patterns.append("templates/zerver/emails/compiled/*")
             ignore_patterns.append("templates/zerver/emails/custom/*")
             ignore_patterns.append("var/*")
             options["ignore_patterns"] = ignore_patterns
@@ -277,9 +276,6 @@ class Command(makemessages.Command):
             except (OSError, ValueError):
                 old_strings = {}
 
-            new_strings = {
-                k: v
-                for k, v in self.get_new_strings(old_strings, translation_strings, locale).items()
-            }
+            new_strings = self.get_new_strings(old_strings, translation_strings, locale)
             with open(output_path, "w") as writer:
                 json.dump(new_strings, writer, indent=2, sort_keys=True)

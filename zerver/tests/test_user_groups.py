@@ -6,12 +6,13 @@ import orjson
 from django.utils.timezone import now as timezone_now
 
 from zerver.actions.realm_settings import do_set_realm_property
-from zerver.actions.user_groups import promote_new_full_members
+from zerver.actions.user_groups import check_add_user_group, promote_new_full_members
+from zerver.actions.users import do_deactivate_user
+from zerver.lib.mention import silent_mention_syntax_for_user
 from zerver.lib.streams import ensure_stream
 from zerver.lib.test_classes import ZulipTestCase
 from zerver.lib.test_helpers import most_recent_usermessage
 from zerver.lib.user_groups import (
-    create_user_group,
     get_direct_memberships_of_users,
     get_direct_user_groups,
     get_recursive_group_members,
@@ -35,36 +36,43 @@ class UserGroupTestCase(ZulipTestCase):
         self, group_name: str, realm: Realm = get_realm("zulip")
     ) -> UserGroup:
         members = [self.example_user("othello")]
-        return create_user_group(group_name, members, realm, acting_user=None)
+        return check_add_user_group(realm, group_name, members, acting_user=None)
 
     def test_user_groups_in_realm_serialized(self) -> None:
         realm = get_realm("zulip")
         user_group = UserGroup.objects.filter(realm=realm).first()
         assert user_group is not None
-        membership = UserGroupMembership.objects.filter(user_group=user_group).values_list(
-            "user_profile_id", flat=True
-        )
-        empty_user_group = create_user_group("newgroup", [], realm, acting_user=None)
+        empty_user_group = check_add_user_group(realm, "newgroup", [], acting_user=None)
 
         user_groups = user_groups_in_realm_serialized(realm)
-        self.assert_length(user_groups, 9)
+        self.assert_length(user_groups, 10)
         self.assertEqual(user_groups[0]["id"], user_group.id)
-        self.assertEqual(user_groups[0]["name"], UserGroup.OWNERS_GROUP_NAME)
-        self.assertEqual(user_groups[0]["description"], "Owners of this organization")
-        self.assertEqual(set(user_groups[0]["members"]), set(membership))
+        self.assertEqual(user_groups[0]["name"], UserGroup.NOBODY_GROUP_NAME)
+        self.assertEqual(user_groups[0]["description"], "Nobody")
+        self.assertEqual(user_groups[0]["members"], [])
         self.assertEqual(user_groups[0]["direct_subgroup_ids"], [])
+
+        owners_system_group = UserGroup.objects.get(name=UserGroup.OWNERS_GROUP_NAME, realm=realm)
+        membership = UserGroupMembership.objects.filter(user_group=owners_system_group).values_list(
+            "user_profile_id", flat=True
+        )
+        self.assertEqual(user_groups[1]["id"], owners_system_group.id)
+        self.assertEqual(user_groups[1]["name"], UserGroup.OWNERS_GROUP_NAME)
+        self.assertEqual(user_groups[1]["description"], "Owners of this organization")
+        self.assertEqual(set(user_groups[1]["members"]), set(membership))
+        self.assertEqual(user_groups[1]["direct_subgroup_ids"], [])
 
         admins_system_group = UserGroup.objects.get(
             name=UserGroup.ADMINISTRATORS_GROUP_NAME, realm=realm
         )
-        self.assertEqual(user_groups[1]["id"], admins_system_group.id)
+        self.assertEqual(user_groups[2]["id"], admins_system_group.id)
         # Check that owners system group is present in "direct_subgroup_ids"
-        self.assertEqual(user_groups[1]["direct_subgroup_ids"], [user_group.id])
+        self.assertEqual(user_groups[2]["direct_subgroup_ids"], [owners_system_group.id])
 
-        self.assertEqual(user_groups[8]["id"], empty_user_group.id)
-        self.assertEqual(user_groups[8]["name"], "newgroup")
-        self.assertEqual(user_groups[8]["description"], "")
-        self.assertEqual(user_groups[8]["members"], [])
+        self.assertEqual(user_groups[9]["id"], empty_user_group.id)
+        self.assertEqual(user_groups[9]["name"], "newgroup")
+        self.assertEqual(user_groups[9]["description"], "")
+        self.assertEqual(user_groups[9]["members"], [])
 
     def test_get_direct_user_groups(self) -> None:
         othello = self.example_user("othello")
@@ -222,7 +230,7 @@ class UserGroupAPITestCase(UserGroupTestCase):
         }
         result = self.client_post("/json/user_groups/create", info=params)
         self.assert_json_success(result)
-        self.assert_length(UserGroup.objects.filter(realm=hamlet.realm), 9)
+        self.assert_length(UserGroup.objects.filter(realm=hamlet.realm), 10)
 
         # Test invalid member error
         params = {
@@ -232,7 +240,7 @@ class UserGroupAPITestCase(UserGroupTestCase):
         }
         result = self.client_post("/json/user_groups/create", info=params)
         self.assert_json_error(result, "Invalid user ID: 1111")
-        self.assert_length(UserGroup.objects.filter(realm=hamlet.realm), 9)
+        self.assert_length(UserGroup.objects.filter(realm=hamlet.realm), 10)
 
         # Test we cannot create group with same name again
         params = {
@@ -242,7 +250,7 @@ class UserGroupAPITestCase(UserGroupTestCase):
         }
         result = self.client_post("/json/user_groups/create", info=params)
         self.assert_json_error(result, "User group 'support' already exists.")
-        self.assert_length(UserGroup.objects.filter(realm=hamlet.realm), 9)
+        self.assert_length(UserGroup.objects.filter(realm=hamlet.realm), 10)
 
     def test_user_group_get(self) -> None:
         # Test success
@@ -294,8 +302,8 @@ class UserGroupAPITestCase(UserGroupTestCase):
         self.assert_json_error(result, "Invalid user group")
 
         lear_realm = get_realm("lear")
-        lear_test_group = create_user_group(
-            "test", [self.lear_user("cordelia")], lear_realm, acting_user=None
+        lear_test_group = check_add_user_group(
+            lear_realm, "test", [self.lear_user("cordelia")], acting_user=None
         )
         result = self.client_patch(f"/json/user_groups/{lear_test_group.id}", info=params)
         self.assert_json_error(result, "Invalid user group")
@@ -304,8 +312,8 @@ class UserGroupAPITestCase(UserGroupTestCase):
         hamlet = self.example_user("hamlet")
         self.login_user(hamlet)
         realm = get_realm("zulip")
-        support_user_group = create_user_group("support", [hamlet], realm, acting_user=None)
-        marketing_user_group = create_user_group("marketing", [hamlet], realm, acting_user=None)
+        support_user_group = check_add_user_group(realm, "support", [hamlet], acting_user=None)
+        marketing_user_group = check_add_user_group(realm, "marketing", [hamlet], acting_user=None)
 
         params = {
             "name": marketing_user_group.name,
@@ -324,19 +332,19 @@ class UserGroupAPITestCase(UserGroupTestCase):
         self.client_post("/json/user_groups/create", info=params)
         user_group = UserGroup.objects.get(name="support")
         # Test success
-        self.assertEqual(UserGroup.objects.filter(realm=hamlet.realm).count(), 9)
-        self.assertEqual(UserGroupMembership.objects.count(), 47)
+        self.assertEqual(UserGroup.objects.filter(realm=hamlet.realm).count(), 10)
+        self.assertEqual(UserGroupMembership.objects.count(), 45)
         result = self.client_delete(f"/json/user_groups/{user_group.id}")
         self.assert_json_success(result)
-        self.assertEqual(UserGroup.objects.filter(realm=hamlet.realm).count(), 8)
-        self.assertEqual(UserGroupMembership.objects.count(), 46)
+        self.assertEqual(UserGroup.objects.filter(realm=hamlet.realm).count(), 9)
+        self.assertEqual(UserGroupMembership.objects.count(), 44)
         # Test when invalid user group is supplied
         result = self.client_delete("/json/user_groups/1111")
         self.assert_json_error(result, "Invalid user group")
 
         lear_realm = get_realm("lear")
-        lear_test_group = create_user_group(
-            "test", [self.lear_user("cordelia")], lear_realm, acting_user=None
+        lear_test_group = check_add_user_group(
+            lear_realm, "test", [self.lear_user("cordelia")], acting_user=None
         )
         result = self.client_delete(f"/json/user_groups/{lear_test_group.id}")
         self.assert_json_error(result, "Invalid user group")
@@ -355,13 +363,26 @@ class UserGroupAPITestCase(UserGroupTestCase):
         self.assertEqual(UserGroupMembership.objects.filter(user_group=user_group).count(), 1)
 
         othello = self.example_user("othello")
-        add = [othello.id]
-        params = {"add": orjson.dumps(add).decode()}
+        # A bot
+        webhook_bot = self.example_user("webhook_bot")
+        # A deactivated user
+        iago = self.example_user("iago")
+        do_deactivate_user(iago, acting_user=None)
+
+        params = {"add": orjson.dumps([othello.id]).decode()}
+        initial_last_message = self.get_last_message()
         result = self.client_post(f"/json/user_groups/{user_group.id}/members", info=params)
         self.assert_json_success(result)
         self.assertEqual(UserGroupMembership.objects.filter(user_group=user_group).count(), 2)
         members = get_direct_memberships_of_users(user_group, [hamlet, othello])
         self.assert_length(members, 2)
+
+        # A notification message is sent for adding to user group.
+        self.assertNotEqual(self.get_last_message(), initial_last_message)
+        expected_notification = (
+            f"{silent_mention_syntax_for_user(hamlet)} added you to the group @_*support*."
+        )
+        self.assertEqual(self.get_last_message().content, expected_notification)
 
         # Test adding a member already there.
         result = self.client_post(f"/json/user_groups/{user_group.id}/members", info=params)
@@ -370,6 +391,24 @@ class UserGroupAPITestCase(UserGroupTestCase):
         members = get_direct_memberships_of_users(user_group, [hamlet, othello])
         self.assert_length(members, 2)
 
+        # Test user adding itself,bot and deactivated user to user group.
+        desdemona = self.example_user("desdemona")
+        self.login_user(desdemona)
+
+        params = {"add": orjson.dumps([desdemona.id, iago.id, webhook_bot.id]).decode()}
+        initial_last_message = self.get_last_message()
+        result = self.client_post(f"/json/user_groups/{user_group.id}/members", info=params)
+        self.assert_json_success(result)
+
+        self.assertEqual(UserGroupMembership.objects.filter(user_group=user_group).count(), 5)
+        members = get_direct_memberships_of_users(
+            user_group, [hamlet, othello, desdemona, iago, webhook_bot]
+        )
+        self.assert_length(members, 5)
+
+        # No notification message is sent for adding to user group.
+        self.assertEqual(self.get_last_message(), initial_last_message)
+
         aaron = self.example_user("aaron")
 
         # For normal testing we again log in with hamlet
@@ -377,19 +416,43 @@ class UserGroupAPITestCase(UserGroupTestCase):
         self.login_user(hamlet)
         # Test remove members
         params = {"delete": orjson.dumps([othello.id]).decode()}
+        initial_last_message = self.get_last_message()
         result = self.client_post(f"/json/user_groups/{user_group.id}/members", info=params)
         self.assert_json_success(result)
-        self.assertEqual(UserGroupMembership.objects.filter(user_group=user_group).count(), 1)
-        members = get_direct_memberships_of_users(user_group, [hamlet, othello, aaron])
-        self.assert_length(members, 1)
+
+        self.assertEqual(UserGroupMembership.objects.filter(user_group=user_group).count(), 4)
+        members = get_direct_memberships_of_users(
+            user_group, [hamlet, othello, aaron, desdemona, webhook_bot, iago]
+        )
+        self.assert_length(members, 4)
+
+        # A notification message is sent for removing from user group.
+        self.assertNotEqual(self.get_last_message(), initial_last_message)
+        expected_notification = (
+            f"{silent_mention_syntax_for_user(hamlet)} removed you from the group @_*support*."
+        )
+        self.assertEqual(self.get_last_message().content, expected_notification)
 
         # Test remove a member that's already removed
         params = {"delete": orjson.dumps([othello.id]).decode()}
         result = self.client_post(f"/json/user_groups/{user_group.id}/members", info=params)
         self.assert_json_error(result, f"There is no member '{othello.id}' in this user group")
+
+        # Test user remove itself,bot and deactivated user from user group.
+        desdemona = self.example_user("desdemona")
+        self.login_user(desdemona)
+
+        params = {"delete": orjson.dumps([desdemona.id, iago.id, webhook_bot.id]).decode()}
+        initial_last_message = self.get_last_message()
+        result = self.client_post(f"/json/user_groups/{user_group.id}/members", info=params)
+        self.assert_json_success(result)
+
         self.assertEqual(UserGroupMembership.objects.filter(user_group=user_group).count(), 1)
-        members = get_direct_memberships_of_users(user_group, [hamlet, othello, aaron])
+        members = get_direct_memberships_of_users(user_group, [hamlet, othello, desdemona])
         self.assert_length(members, 1)
+
+        # No notification message is sent for removing from user group.
+        self.assertEqual(self.get_last_message(), initial_last_message)
 
         # Test when nothing is provided
         result = self.client_post(f"/json/user_groups/{user_group.id}/members", info={})
@@ -419,8 +482,8 @@ class UserGroupAPITestCase(UserGroupTestCase):
         for user in all_users:
             self.subscribe(user, stream_name)
 
-        create_user_group(
-            name=group_name, members=list(support_team), realm=realm, acting_user=None
+        check_add_user_group(
+            name=group_name, initial_members=list(support_team), realm=realm, acting_user=None
         )
 
         payload = dict(
@@ -457,7 +520,7 @@ class UserGroupAPITestCase(UserGroupTestCase):
             if error_msg is None:
                 self.assert_json_success(result)
                 # One group already exists in the test database.
-                self.assert_length(UserGroup.objects.filter(realm=realm), 9)
+                self.assert_length(UserGroup.objects.filter(realm=realm), 10)
             else:
                 self.assert_json_error(result, error_msg)
 
@@ -467,7 +530,7 @@ class UserGroupAPITestCase(UserGroupTestCase):
             result = self.client_delete(f"/json/user_groups/{user_group.id}")
             if error_msg is None:
                 self.assert_json_success(result)
-                self.assert_length(UserGroup.objects.filter(realm=realm), 8)
+                self.assert_length(UserGroup.objects.filter(realm=realm), 9)
             else:
                 self.assert_json_error(result, error_msg)
 
@@ -838,10 +901,10 @@ class UserGroupAPITestCase(UserGroupTestCase):
         hamlet = self.example_user("hamlet")
         othello = self.example_user("othello")
 
-        leadership_group = create_user_group(
-            "leadership", [desdemona, iago, hamlet], realm, acting_user=None
+        leadership_group = check_add_user_group(
+            realm, "leadership", [desdemona, iago, hamlet], acting_user=None
         )
-        support_group = create_user_group("support", [hamlet, othello], realm, acting_user=None)
+        support_group = check_add_user_group(realm, "support", [hamlet, othello], acting_user=None)
 
         self.login("cordelia")
         # Non-admin and non-moderators who are not a member of group cannot add or remove subgroups.
@@ -906,8 +969,8 @@ class UserGroupAPITestCase(UserGroupTestCase):
         )
 
         lear_realm = get_realm("lear")
-        lear_test_group = create_user_group(
-            "test", [self.lear_user("cordelia")], lear_realm, acting_user=None
+        lear_test_group = check_add_user_group(
+            lear_realm, "test", [self.lear_user("cordelia")], acting_user=None
         )
         result = self.client_post(f"/json/user_groups/{lear_test_group.id}/subgroups", info=params)
         self.assert_json_error(result, "Invalid user group")
@@ -941,7 +1004,9 @@ class UserGroupAPITestCase(UserGroupTestCase):
 
         lear_realm = get_realm("lear")
         lear_cordelia = self.lear_user("cordelia")
-        lear_test_group = create_user_group("test", [lear_cordelia], lear_realm, acting_user=None)
+        lear_test_group = check_add_user_group(
+            lear_realm, "test", [lear_cordelia], acting_user=None
+        )
         result = self.client_get(
             f"/json/user_groups/{lear_test_group.id}/members/{lear_cordelia.id}"
         )
@@ -1001,8 +1066,8 @@ class UserGroupAPITestCase(UserGroupTestCase):
         self.assert_json_error(result, "Invalid user group")
 
         lear_realm = get_realm("lear")
-        lear_test_group = create_user_group(
-            "test", [self.lear_user("cordelia")], lear_realm, acting_user=None
+        lear_test_group = check_add_user_group(
+            lear_realm, "test", [self.lear_user("cordelia")], acting_user=None
         )
         result = self.client_get(f"/json/user_groups/{lear_test_group.id}/members")
         self.assert_json_error(result, "Invalid user group")
@@ -1049,8 +1114,8 @@ class UserGroupAPITestCase(UserGroupTestCase):
         self.assert_json_error(result, "Invalid user group")
 
         lear_realm = get_realm("lear")
-        lear_test_group = create_user_group(
-            "test", [self.lear_user("cordelia")], lear_realm, acting_user=None
+        lear_test_group = check_add_user_group(
+            lear_realm, "test", [self.lear_user("cordelia")], acting_user=None
         )
         result = self.client_get(f"/json/user_groups/{lear_test_group.id}/subgroups")
         self.assert_json_error(result, "Invalid user group")

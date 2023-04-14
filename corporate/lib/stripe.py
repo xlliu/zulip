@@ -95,14 +95,19 @@ def unsign_string(signed_string: str, salt: str) -> str:
     return signer.unsign(signed_string)
 
 
-def validate_licenses(charge_automatically: bool, licenses: Optional[int], seat_count: int) -> None:
+def validate_licenses(
+    charge_automatically: bool,
+    licenses: Optional[int],
+    seat_count: int,
+    exempt_from_license_number_check: bool,
+) -> None:
     min_licenses = seat_count
     max_licenses = None
     if not charge_automatically:
         min_licenses = max(seat_count, MIN_INVOICED_LICENSES)
         max_licenses = MAX_INVOICED_LICENSES
 
-    if licenses is None or licenses < min_licenses:
+    if licenses is None or (not exempt_from_license_number_check and licenses < min_licenses):
         raise BillingError(
             "not enough licenses", _("You must invoice for at least {} users.").format(min_licenses)
         )
@@ -1004,13 +1009,16 @@ def approve_sponsorship(realm: Realm, *, acting_user: Optional[UserProfile]) -> 
     for user in realm.get_human_billing_admin_and_realm_owner_users():
         with override_language(user.default_language):
             # Using variable to make life easier for translators if these details change.
-            plan_name = "Zulip Cloud Standard"
-            emoji = ":tada:"
             message = _(
                 "Your organization's request for sponsored hosting has been approved! "
-                f"You have been upgraded to {plan_name}, free of charge. {emoji}\n\n"
-                "If you could [list Zulip as a sponsor on your website](/help/linking-to-zulip-website), "
+                "You have been upgraded to {plan_name}, free of charge. {emoji}\n\n"
+                "If you could {begin_link}list Zulip as a sponsor on your website{end_link}, "
                 "we would really appreciate it!"
+            ).format(
+                plan_name="Zulip Cloud Standard",
+                emoji=":tada:",
+                begin_link="[",
+                end_link="](/help/linking-to-zulip-website)",
             )
             internal_send_private_message(notification_bot, user, message)
 

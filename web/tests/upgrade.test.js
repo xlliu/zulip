@@ -54,7 +54,7 @@ run_test("initialize", ({override_rewire}) => {
                     assert.deepEqual(ignored_inputs, []);
                     assert.equal(type, "POST");
                     location.replace = (new_location) => {
-                        assert.equal(new_location, "/billing");
+                        assert.equal(new_location, "/billing/");
                     };
                     success_callback();
                     break;
@@ -185,10 +185,6 @@ run_test("autopay_form_fields", () => {
     );
     assert.equal(
         document.querySelector("#autopay-form #automatic_license_count").value,
-        "{{ seat_count }}",
-    );
-    assert.equal(
-        document.querySelector("#autopay-form #manual_license_count").min,
         "{{ seat_count }}",
     );
 

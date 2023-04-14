@@ -11,7 +11,6 @@ import render_single_message from "../templates/single_message.hbs";
 
 import * as activity from "./activity";
 import * as blueslip from "./blueslip";
-import * as color_class from "./color_class";
 import * as compose from "./compose";
 import * as compose_fade from "./compose_fade";
 import * as condense from "./condense";
@@ -29,6 +28,7 @@ import * as popovers from "./popovers";
 import * as reactions from "./reactions";
 import * as rendered_markdown from "./rendered_markdown";
 import * as rows from "./rows";
+import * as stream_color from "./stream_color";
 import * as stream_data from "./stream_data";
 import * as sub_store from "./sub_store";
 import * as submessage from "./submessage";
@@ -156,14 +156,21 @@ function set_timestr(message_container) {
 function set_topic_edit_properties(group, message) {
     group.always_visible_topic_edit = false;
     group.on_hover_topic_edit = false;
+
+    const is_topic_editable = message_edit.is_topic_editable(message);
+
     // if a user who can edit a topic, can resolve it as well
-    group.user_can_resolve_topic = message_edit.is_topic_editable(message);
+    group.user_can_resolve_topic = is_topic_editable;
+
+    if (!is_topic_editable) {
+        return;
+    }
 
     // Messages with no topics should always have an edit icon visible
     // to encourage updating them. Admins can also edit any topic.
     if (message.topic === compose.empty_topic_placeholder()) {
         group.always_visible_topic_edit = true;
-    } else if (message_edit.is_topic_editable(message)) {
+    } else {
         group.on_hover_topic_edit = true;
     }
 }
@@ -173,8 +180,9 @@ function populate_group_from_message_container(group, message_container) {
     group.is_private = message_container.msg.is_private;
 
     if (group.is_stream) {
-        group.background_color = stream_data.get_color(message_container.msg.stream);
-        group.color_class = color_class.get_css_class(group.background_color);
+        const color = stream_data.get_color(message_container.msg.stream);
+        group.recipient_bar_color = stream_color.get_recipient_bar_color(color);
+        group.stream_privacy_icon_color = stream_color.get_stream_privacy_icon_color(color);
         group.invite_only = stream_data.is_invite_only_by_stream_name(message_container.msg.stream);
         group.is_web_public = stream_data.is_web_public(message_container.msg.stream_id);
         group.topic = message_container.msg.topic;
@@ -221,7 +229,7 @@ export class MessageListView {
         // These three data structures keep track of groups of messages in the DOM.
         //
         // The message_groups are blocks of messages rendered into the
-        // DOM that will share a common recipent bar heading.
+        // DOM that will share a common recipient bar heading.
         //
         // A message_container an object containing a Message object
         // plus additional computed metadata needed for rendering it
@@ -1414,12 +1422,9 @@ export class MessageListView {
     }
 
     _maybe_format_me_message(message_container) {
-        if (message_container.is_hidden) {
-            // If the message is to be hidden anyway, no need to render
-            // it differently.
-            return;
-        }
-        if (message_container.msg.is_me_message) {
+        // If the message is to be hidden anyway, no need to render
+        // it differently.
+        if (!message_container.is_hidden && message_container.msg.is_me_message) {
             // Slice the '<p>/me ' off the front, and '</p>' off the first line
             // 'p' tag is sliced off to get sender in the same line as the
             // first line of the message
@@ -1556,6 +1561,15 @@ export class MessageListView {
             if (!$prev_header_date_row.hasClass("recipient_row_date_unchanged")) {
                 $prev_header_date_row.addClass("hide-date-separator-header");
             }
+        }
+    }
+
+    update_recipient_bar_background_color() {
+        const $table = rows.get_table(this.table_name);
+        const $stream_headers = $table.find(".message_header_stream");
+        for (const stream_header of $stream_headers) {
+            const $stream_header = $(stream_header);
+            stream_color.update_stream_recipient_color($stream_header);
         }
     }
 }

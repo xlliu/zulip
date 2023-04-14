@@ -7,7 +7,6 @@ const {run_test} = require("./lib/test");
 const $ = require("./lib/zjquery");
 
 const list_widget = mock_esm("../src/list_widget");
-const muted_topics_ui = mock_esm("../src/muted_topics_ui");
 
 const settings_muted_topics = zrequire("settings_muted_topics");
 const stream_data = zrequire("stream_data");
@@ -22,7 +21,12 @@ const frontend = {
 stream_data.add_sub(frontend);
 
 run_test("settings", ({override}) => {
-    user_topics.add_muted_topic(frontend.stream_id, "js", 1577836800);
+    user_topics.update_user_topics(
+        frontend.stream_id,
+        "js",
+        user_topics.all_visibility_policies.MUTED,
+        1577836800,
+    );
     let populate_list_called = false;
     override(list_widget, "create", ($container, list) => {
         assert.deepEqual(list, [
@@ -73,7 +77,7 @@ run_test("settings", ({override}) => {
     };
 
     let unmute_topic_called = false;
-    muted_topics_ui.unmute_topic = (stream_id, topic) => {
+    user_topics.set_user_topic_visibility_policy = (stream_id, topic) => {
         assert.equal(stream_id, frontend.stream_id);
         assert.equal(topic, "js");
         unmute_topic_called = true;

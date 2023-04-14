@@ -139,7 +139,7 @@ js_rules = RuleList(
                 "web/src/portico",
                 "web/src/lightbox.js",
                 "web/src/ui_report.ts",
-                "web/src/dialog_widget.js",
+                "web/src/dialog_widget.ts",
                 "web/tests/",
             },
             "description": "Setting HTML content with jQuery .html() can lead to XSS security bugs.  Consider .text() or using rendered_foo as a variable name if content comes from Handlebars and thus is already sanitized.",
@@ -541,8 +541,8 @@ html_rules: List["Rule"] = [
         "pattern": r'placeholder="[^{#](?:(?!\.com).)+$',
         "description": "`placeholder` value should be translatable.",
         "exclude_line": {
-            ("templates/zerver/register.html", 'placeholder="acme"'),
-            ("templates/zerver/register.html", 'placeholder="Acme or Ακμή"'),
+            ("templates/zerver/realm_creation_form.html", 'placeholder="acme"'),
+            ("templates/zerver/realm_creation_form.html", 'placeholder="Acme or Ακμή"'),
         },
         "exclude": {
             "templates/analytics/support.html",
@@ -673,7 +673,7 @@ html_rules: List["Rule"] = [
             "web/templates/single_message.hbs",
             # Old-style email templates need to use inline style
             # attributes; it should be possible to clean these up
-            # when we convert these templates to use premailer.
+            # when we convert these templates to use css-inline.
             "templates/zerver/emails/email_base_messages.html",
             # Email log templates; should clean up.
             "templates/zerver/email.html",

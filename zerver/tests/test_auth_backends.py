@@ -1039,7 +1039,7 @@ class SocialAuthBase(DesktopFlowTestingLib, ZulipTestCase, ABC):
         self.client.cookies = result.cookies
 
         # Next, the browser requests result["Location"], and gets
-        # redirected back to the registered redirect uri.
+        # redirected back to the registered redirect url.
 
         # We register callbacks for the key URLs on Identity Provider that
         # auth completion URL will call
@@ -1114,8 +1114,8 @@ class SocialAuthBase(DesktopFlowTestingLib, ZulipTestCase, ABC):
         self.assertEqual(data["redirect_to"], "/user_uploads/image")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
         self.assertIn(
             f"INFO:{self.logger_string}:Authentication attempt from 127.0.0.1: subdomain=zulip;username=hamlet@zulip.com;outcome=success",
@@ -1138,8 +1138,8 @@ class SocialAuthBase(DesktopFlowTestingLib, ZulipTestCase, ABC):
         self.assertEqual(data["redirect_to"], "/user_uploads/image")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
     def test_social_auth_deactivated_user(self) -> None:
         user_profile = self.example_user("hamlet")
@@ -1360,8 +1360,8 @@ class SocialAuthBase(DesktopFlowTestingLib, ZulipTestCase, ABC):
         self.assertEqual(data["subdomain"], "zulip")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
         hamlet = self.example_user("hamlet")
         # Name wasn't changed at all
         self.assertEqual(hamlet.full_name, "King Hamlet")
@@ -1386,8 +1386,8 @@ class SocialAuthBase(DesktopFlowTestingLib, ZulipTestCase, ABC):
         self.assertEqual(data["subdomain"], "zulip")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
         result = self.client_get(result["Location"])
 
@@ -1409,7 +1409,7 @@ class SocialAuthBase(DesktopFlowTestingLib, ZulipTestCase, ABC):
         confirmation_data = {"from_confirmation": "1", "key": confirmation_key}
         result = self.client_post("/accounts/register/", confirmation_data)
         if not skip_registration_form:
-            self.assert_in_response("We just need you to do one last thing", result)
+            self.assert_in_response("Enter your account details to complete registration.", result)
 
             # Verify that the user is asked for name but not password
             self.assert_not_in_success_response(["id_password"], result)
@@ -1673,8 +1673,8 @@ class SocialAuthBase(DesktopFlowTestingLib, ZulipTestCase, ABC):
         self.assertEqual(data["subdomain"], "zulip")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
         result = self.client_get(result["Location"])
         self.assertEqual(result.status_code, 200)
@@ -1697,8 +1697,8 @@ class SocialAuthBase(DesktopFlowTestingLib, ZulipTestCase, ABC):
         self.assertEqual(data["subdomain"], "zulip")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
         result = self.client_get(result["Location"])
         self.assertEqual(result.status_code, 200)
@@ -2674,10 +2674,10 @@ class SAMLAuthBackendTest(SocialAuthBase):
         self.assertEqual(data["subdomain"], "zulip")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
-        self.client_get(uri)
+        self.client_get(url)
         self.assert_logged_in_user_id(self.example_user("hamlet").id)
 
     def test_choose_subdomain_invalid_subdomain_specified(self) -> None:
@@ -2709,10 +2709,10 @@ class SAMLAuthBackendTest(SocialAuthBase):
         self.assertEqual(data["subdomain"], "zulip")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
-        self.client_get(uri)
+        self.client_get(url)
         self.assert_logged_in_user_id(self.example_user("hamlet").id)
 
     def test_idp_initiated_signin_subdomain_implicit_no_relaystate_param(self) -> None:
@@ -2730,10 +2730,10 @@ class SAMLAuthBackendTest(SocialAuthBase):
         self.assertEqual(data["subdomain"], "zulip")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
-        self.client_get(uri)
+        self.client_get(url)
         self.assert_logged_in_user_id(self.example_user("hamlet").id)
 
     def test_idp_initiated_signin_subdomain_implicit_invalid(self) -> None:
@@ -3745,8 +3745,8 @@ class GitHubAuthBackendTest(SocialAuthBase):
         self.assertEqual(data["redirect_to"], "/user_uploads/image")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
     def test_github_oauth2_success_single_email(self) -> None:
         # If the user has a single email associated with its GitHub account,
@@ -3770,8 +3770,8 @@ class GitHubAuthBackendTest(SocialAuthBase):
         self.assertEqual(data["redirect_to"], "/user_uploads/image")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
     def test_github_oauth2_login_only_one_account_exists(self) -> None:
         # In a login flow, if only one of the user's verified emails
@@ -3799,8 +3799,8 @@ class GitHubAuthBackendTest(SocialAuthBase):
         self.assertEqual(data["redirect_to"], "/user_uploads/image")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
     def test_github_oauth2_login_multiple_accounts_exist(self) -> None:
         # In the login flow, if multiple of the user's verified emails
@@ -3828,8 +3828,8 @@ class GitHubAuthBackendTest(SocialAuthBase):
         self.assertEqual(data["redirect_to"], "/user_uploads/image")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
     def test_github_oauth2_login_no_account_exists(self) -> None:
         # In the login flow, if the user has multiple verified emails,
@@ -3889,8 +3889,8 @@ class GitHubAuthBackendTest(SocialAuthBase):
         self.assertEqual(data["redirect_to"], "/user_uploads/image")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
     def test_github_oauth2_signup_choose_new_email_to_register(self) -> None:
         # In the sign up flow, if the user has multiple verified
@@ -3972,8 +3972,8 @@ class GitHubAuthBackendTest(SocialAuthBase):
         self.assertEqual(data["subdomain"], "zulip")
         self.assertEqual(result.status_code, 302)
         parsed_url = urllib.parse.urlparse(result["Location"])
-        uri = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
-        self.assertTrue(uri.startswith("http://zulip.testserver/accounts/login/subdomain/"))
+        url = f"{parsed_url.scheme}://{parsed_url.netloc}{parsed_url.path}"
+        self.assertTrue(url.startswith("http://zulip.testserver/accounts/login/subdomain/"))
 
     def test_github_oauth2_email_not_associated(self) -> None:
         account_data_dict = self.get_account_data_dict(
@@ -4091,7 +4091,7 @@ class GoogleAuthBackendTest(SocialAuthBase):
             ],
         )
 
-    def test_social_auth_mobile_realm_uri(self) -> None:
+    def test_social_auth_mobile_realm_url(self) -> None:
         mobile_flow_otp = "1234abcd" * 8
         account_data_dict = self.get_account_data_dict(email=self.email, name="Full Name")
 
@@ -4282,7 +4282,7 @@ class GoogleAuthBackendTest(SocialAuthBase):
             "key": confirmation_key,
         }
         result = self.client_post("/accounts/register/", confirmation_data, subdomain="zulip")
-        self.assert_in_response("We just need you to do one last thing", result)
+        self.assert_in_response("Enter your account details to complete registration.", result)
 
         # Verify that the user is asked for name but not password
         self.assert_not_in_success_response(["id_password"], result)
@@ -4318,7 +4318,7 @@ class GoogleAuthBackendTest(SocialAuthBase):
             "key": confirmation_key,
         }
         result = self.client_post("/accounts/register/", confirmation_data, subdomain="zulip")
-        self.assert_in_response("We just need you to do one last thing", result)
+        self.assert_in_response("Enter your account details to complete registration.", result)
 
         # Verify that the user is asked for name but not password
         self.assert_not_in_success_response(["id_password"], result)
@@ -4372,7 +4372,7 @@ class GoogleAuthBackendTest(SocialAuthBase):
         self.assert_in_response('action="/accounts/register/"', result)
         data2 = {"from_confirmation": "1", "full_name": data["full_name"], "key": confirmation_key}
         result = self.client_post("/accounts/register/", data2, subdomain="zulip")
-        self.assert_in_response("We just need you to do one last thing", result)
+        self.assert_in_response("Enter your account details to complete registration.", result)
 
         # Verify that the user is asked for name but not password
         self.assert_not_in_success_response(["id_password"], result)
@@ -4460,7 +4460,8 @@ class FetchAPIKeyTest(ZulipTestCase):
             "/api/v1/fetch_api_key",
             dict(username=self.email, password=initial_password(self.email)),
         )
-        self.assert_json_success(result)
+        json_response = self.assert_json_success(result)
+        self.assertEqual(json_response["user_id"], self.user_profile.id)
 
     def test_invalid_email(self) -> None:
         result = self.client_post(
@@ -4500,7 +4501,8 @@ class FetchAPIKeyTest(ZulipTestCase):
                 "/api/v1/fetch_api_key",
                 dict(username=self.example_email("hamlet"), password=self.ldap_password("hamlet")),
             )
-        self.assert_json_success(result)
+        json_response = self.assert_json_success(result)
+        self.assertEqual(json_response["user_id"], self.user_profile.id)
 
     @override_settings(
         AUTHENTICATION_BACKENDS=("zproject.backends.ZulipLDAPAuthBackend",),
@@ -4530,7 +4532,8 @@ class FetchAPIKeyTest(ZulipTestCase):
             "/api/v1/fetch_api_key",
             dict(username="hamlet", password=self.ldap_password("hamlet")),
         )
-        self.assert_json_success(result)
+        json_response = self.assert_json_success(result)
+        self.assertEqual(json_response["user_id"], self.user_profile.id)
 
     @override_settings(
         AUTHENTICATION_BACKENDS=("zproject.backends.ZulipLDAPAuthBackend",),
@@ -4663,6 +4666,7 @@ class DevFetchAPIKeyTest(ZulipTestCase):
         result = self.client_post("/api/v1/dev_fetch_api_key", dict(username=self.email))
         data = self.assert_json_success(result)
         self.assertEqual(data["email"], self.email)
+        self.assertEqual(data["user_id"], self.user_profile.id)
         user_api_keys = get_all_api_keys(self.user_profile)
         self.assertIn(data["api_key"], user_api_keys)
 
@@ -5655,6 +5659,7 @@ class ZulipLDAPTestCase(ZulipTestCase):
         # method separately, we need to set them manually.
         self.backend._realm = get_realm("zulip")
         self.backend._prereg_user = None
+        self.backend._prereg_realm = None
 
     def setup_subdomain(self, user_profile: UserProfile) -> None:
         realm = user_profile.realm

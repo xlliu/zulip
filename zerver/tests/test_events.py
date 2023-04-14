@@ -200,7 +200,6 @@ from zerver.lib.test_helpers import (
 )
 from zerver.lib.topic import TOPIC_NAME
 from zerver.lib.types import ProfileDataElementUpdateDict
-from zerver.lib.user_groups import create_user_group
 from zerver.models import (
     Attachment,
     CustomProfileField,
@@ -310,7 +309,7 @@ class BaseAction(ZulipTestCase):
 
         # We want even those `send_event` calls which have been hooked to
         # `transaction.on_commit` to execute in tests.
-        # See the comment in `ZulipTestCase.tornado_redirected_to_list`.
+        # See the comment in `ZulipTestCase.capture_send_event_calls`.
         with self.captureOnCommitCallbacks(execute=True):
             action()
 
@@ -1321,8 +1320,8 @@ class NormalActionsTest(BaseAction):
 
         check_user_group_remove_members("events[0]", events[0])
 
-        api_design = create_user_group(
-            "api-design", [hamlet], hamlet.realm, description="API design team", acting_user=None
+        api_design = check_add_user_group(
+            hamlet.realm, "api-design", [hamlet], description="API design team", acting_user=None
         )
 
         # Test add subgroups
@@ -2433,17 +2432,17 @@ class NormalActionsTest(BaseAction):
         self.login("hamlet")
         fp = StringIO("zulip!")
         fp.name = "zulip.txt"
-        uri = None
+        url = None
 
         def do_upload() -> None:
-            nonlocal uri
+            nonlocal url
             result = self.client_post("/json/user_uploads", {"file": fp})
 
             response_dict = self.assert_json_success(result)
             self.assertIn("uri", response_dict)
-            uri = response_dict["uri"]
+            url = response_dict["uri"]
             base = "/user_uploads/"
-            self.assertEqual(base, uri[: len(base)])
+            self.assertEqual(base, url[: len(base)])
 
         events = self.verify_action(lambda: do_upload(), num_events=1, state_change_expected=False)
 
@@ -2456,8 +2455,8 @@ class NormalActionsTest(BaseAction):
 
         hamlet = self.example_user("hamlet")
         self.subscribe(hamlet, "Denmark")
-        assert uri is not None
-        body = f"First message ...[zulip.txt](http://{hamlet.realm.host}" + uri + ")"
+        assert url is not None
+        body = f"First message ...[zulip.txt](http://{hamlet.realm.host}" + url + ")"
         events = self.verify_action(
             lambda: self.send_stream_message(self.example_user("hamlet"), "Denmark", body, "test"),
             num_events=2,

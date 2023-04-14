@@ -76,19 +76,9 @@ export class DropdownListWidget {
 
     register_event_handlers() {
         $(`#${CSS.escape(this.container_id)} .dropdown-list-body`).on(
-            "click keypress",
+            "click",
             ".list_item",
             (e) => {
-                const $setting_elem = $(e.currentTarget).closest(
-                    `.${CSS.escape(this.widget_name)}_setting`,
-                );
-                if (e.type === "keypress") {
-                    if (keydown_util.is_enter_event(e)) {
-                        $setting_elem.find(".dropdown-menu").dropdown("toggle");
-                    } else {
-                        return;
-                    }
-                }
                 const value = $(e.currentTarget).attr("data-value");
                 this.update(value);
             },
@@ -99,6 +89,13 @@ export class DropdownListWidget {
         });
     }
 
+    get_data = (data) => {
+        if (this.include_current_item) {
+            return data;
+        }
+        return data.filter((x) => x.value !== this.value.toString());
+    };
+
     setup_dropdown_widget(data) {
         const $dropdown_list_body = $(
             `#${CSS.escape(this.container_id)} .dropdown-list-body`,
@@ -106,14 +103,8 @@ export class DropdownListWidget {
         const $search_input = $(
             `#${CSS.escape(this.container_id)} .dropdown-search > input[type=text]`,
         );
-        const get_data = () => {
-            if (this.include_current_item) {
-                return data;
-            }
-            return data.filter((x) => x.value !== this.value.toString());
-        };
 
-        ListWidget.create($dropdown_list_body, get_data(data), {
+        ListWidget.create($dropdown_list_body, this.get_data(data), {
             name: `${CSS.escape(this.widget_name)}_list`,
             modifier(item) {
                 return render_dropdown_list({item});
@@ -140,7 +131,7 @@ export class DropdownListWidget {
         });
     }
 
-    dropdown_focus_events() {
+    dropdown_keyboard_events() {
         const $search_input = $(
             `#${CSS.escape(this.container_id)} .dropdown-search > input[type=text]`,
         );
@@ -200,6 +191,18 @@ export class DropdownListWidget {
                     break;
                 }
             }
+
+            if (keydown_util.is_enter_event(e)) {
+                e.stopPropagation();
+                e.preventDefault();
+                if (e.target === $search_input[0]) {
+                    // Select the first option from the menu on pressing
+                    // "Enter" when focus is on the search input.
+                    dropdown_elements().first().trigger("click");
+                } else if ($(e.target).parent().hasClass("list_item")) {
+                    $(e.target).trigger("click");
+                }
+            }
         });
     }
 
@@ -234,7 +237,7 @@ export class DropdownListWidget {
             }
         });
 
-        this.dropdown_focus_events();
+        this.dropdown_keyboard_events();
 
         this.render(this.initial_value);
         this.register_event_handlers();
@@ -455,7 +458,7 @@ export class MultiSelectDropdownListWidget extends DropdownListWidget {
         tippy_instance.destroy();
     }
 
-    dropdown_focus_events() {
+    dropdown_keyboard_events() {
         // Main keydown event handler which transfers the focus from one child element
         // to another.
 
@@ -524,6 +527,18 @@ export class MultiSelectDropdownListWidget extends DropdownListWidget {
                     break;
                 }
             }
+
+            if (keydown_util.is_enter_event(e)) {
+                e.stopPropagation();
+                e.preventDefault();
+                if (e.target === $search_input[0]) {
+                    // Select the first option from the menu on pressing
+                    // "Enter" when focus is on the search input.
+                    dropdown_elements().first().trigger("click");
+                } else if ($(e.target).parent().hasClass("list_item")) {
+                    $(e.target).trigger("click");
+                }
+            }
         });
     }
 
@@ -533,11 +548,7 @@ export class MultiSelectDropdownListWidget extends DropdownListWidget {
             `#${CSS.escape(this.container_id)} .dropdown-list-body`,
         ).expectOne();
 
-        $dropdown_list_body.on("click keypress", ".list_item", (e) => {
-            if (e.type === "keypress" && !keydown_util.is_enter_event(e)) {
-                return;
-            }
-
+        $dropdown_list_body.on("click", ".list_item", (e) => {
             const $element = e.target.closest("li");
             if ($element.hasClass("checked")) {
                 this.remove_check_mark($element);

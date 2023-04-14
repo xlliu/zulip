@@ -469,6 +469,7 @@ export function initialize() {
             $(".tooltip").remove();
         });
 
+    // Doesn't show tooltip on touch devices.
     function do_render_buddy_list_tooltip(
         $elem,
         title_data,
@@ -490,6 +491,11 @@ export function initialize() {
             // so that they don't stick and overlap with
             // each other.
             delay: 0,
+            // Don't show tooltip on touch devices (99% mobile) since touch pressing on users in the left or right
+            // sidebar leads to narrow being changed and the sidebar is hidden. So, there is no user displayed
+            // to show tooltip for. It is safe to show the tooltip on long press but it not worth
+            // the inconvenience of having a tooltip hanging around on a small mobile screen if anything going wrong.
+            touch: false,
             content: () => parse_html(render_buddy_list_tooltip_content(title_data)),
             arrow: true,
             placement,
@@ -524,7 +530,7 @@ export function initialize() {
         });
     }
 
-    // BUDDY LIST TOOLTIPS
+    // BUDDY LIST TOOLTIPS (not displayed on touch devices)
     $("#user_presences").on("mouseenter", ".selectable_sidebar_block", (e) => {
         e.stopPropagation();
         const $elem = $(e.currentTarget).closest(".user_sidebar_entry").find(".user-presence-link");
@@ -532,8 +538,8 @@ export function initialize() {
         const title_data = buddy_data.get_title_data(user_id_string, false);
 
         // `target_node` is the `ul` element since it stays in DOM even after updates.
-        function get_target_node(tippy_instance) {
-            return $(tippy_instance.reference).parents("ul").get(0);
+        function get_target_node() {
+            return document.querySelector("#user_presences");
         }
 
         function check_reference_removed(mutation, instance) {
@@ -551,7 +557,7 @@ export function initialize() {
         );
     });
 
-    // PM LIST TOOLTIPS
+    // PM LIST TOOLTIPS (not displayed on touch devices)
     $("body").on("mouseenter", ".pm_user_status", (e) => {
         e.stopPropagation();
         const $elem = $(e.currentTarget);
@@ -584,7 +590,7 @@ export function initialize() {
         );
     });
 
-    // Recent conversations PMs
+    // Recent conversations PMs (Not displayed on small widths)
     $("body").on("mouseenter", ".recent_topic_stream .pm_status_icon", (e) => {
         e.stopPropagation();
         const $elem = $(e.currentTarget);
@@ -803,16 +809,22 @@ export function initialize() {
         settings_display.launch_default_language_setting_modal();
     });
 
+    // We cannot update recipient bar color using dark_theme.enable/disable due to
+    // it being called before message lists are initialized and the order cannot be changed.
+    // Also, since these buttons are only visible for spectators which doesn't have events,
+    // if theme is changed in a different tab, the theme of this tab remains the same.
     $("body").on("click", "#gear-menu .dark-theme", (e) => {
         // Allow propagation to close gear menu.
         e.preventDefault();
         dark_theme.enable();
+        message_lists.update_recipient_bar_background_color();
     });
 
     $("body").on("click", "#gear-menu .light-theme", (e) => {
         // Allow propagation to close gear menu.
         e.preventDefault();
         dark_theme.disable();
+        message_lists.update_recipient_bar_background_color();
     });
 
     // MAIN CLICK HANDLER
@@ -872,6 +884,7 @@ export function initialize() {
                 !$(e.target).closest(".popover").length &&
                 !$(e.target).closest(".micromodal").length &&
                 !$(e.target).closest("[data-tippy-root]").length &&
+                !$(e.target).closest(".typeahead").length &&
                 !$(e.target).closest(".enter_sends").length &&
                 $(e.target).closest("body").length
             ) {

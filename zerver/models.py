@@ -515,78 +515,91 @@ class Realm(models.Model):  # type: ignore[django-manager-missing] # django-stub
             "id": 0,
             "hidden": True,
             "display_order": 0,
+            "onboarding_zulip_guide_url": None,
         },
         "business": {
             "name": "Business",
             "id": 10,
             "hidden": False,
             "display_order": 1,
+            "onboarding_zulip_guide_url": "https://zulip.com/for/business/",
         },
         "opensource": {
             "name": "Open-source project",
             "id": 20,
             "hidden": False,
             "display_order": 2,
+            "onboarding_zulip_guide_url": "https://zulip.com/for/open-source/",
         },
         "education_nonprofit": {
             "name": "Education (non-profit)",
             "id": 30,
             "hidden": False,
             "display_order": 3,
+            "onboarding_zulip_guide_url": "https://zulip.com/for/education/",
         },
         "education": {
             "name": "Education (for-profit)",
             "id": 35,
             "hidden": False,
             "display_order": 4,
+            "onboarding_zulip_guide_url": "https://zulip.com/for/education/",
         },
         "research": {
             "name": "Research",
             "id": 40,
             "hidden": False,
             "display_order": 5,
+            "onboarding_zulip_guide_url": "https://zulip.com/for/research/",
         },
         "event": {
             "name": "Event or conference",
             "id": 50,
             "hidden": False,
             "display_order": 6,
+            "onboarding_zulip_guide_url": "https://zulip.com/for/events/",
         },
         "nonprofit": {
             "name": "Non-profit (registered)",
             "id": 60,
             "hidden": False,
             "display_order": 7,
+            "onboarding_zulip_guide_url": "https://zulip.com/for/communities/",
         },
         "government": {
             "name": "Government",
             "id": 70,
             "hidden": False,
             "display_order": 8,
+            "onboarding_zulip_guide_url": None,
         },
         "political_group": {
             "name": "Political group",
             "id": 80,
             "hidden": False,
             "display_order": 9,
+            "onboarding_zulip_guide_url": None,
         },
         "community": {
             "name": "Community",
             "id": 90,
             "hidden": False,
             "display_order": 10,
+            "onboarding_zulip_guide_url": "https://zulip.com/for/communities/",
         },
         "personal": {
             "name": "Personal",
             "id": 100,
             "hidden": False,
             "display_order": 100,
+            "onboarding_zulip_guide_url": None,
         },
         "other": {
             "name": "Other",
             "id": 1000,
             "hidden": False,
             "display_order": 1000,
+            "onboarding_zulip_guide_url": None,
         },
     }
 
@@ -678,14 +691,6 @@ class Realm(models.Model):  # type: ignore[django-manager-missing] # django-stub
             "id": 5,
         },
     }
-
-    def get_giphy_rating_options(self) -> Dict[str, Dict[str, object]]:
-        """Wrapper function for GIPHY_RATING_OPTIONS that ensures evaluation
-        of the lazily evaluated `name` field without modifying the original."""
-        return {
-            rating_type: {"name": str(rating["name"]), "id": rating["id"]}
-            for rating_type, rating in self.GIPHY_RATING_OPTIONS.items()
-        }
 
     # maximum rating of the GIFs that will be retrieved from GIPHY
     giphy_rating = models.PositiveSmallIntegerField(default=GIPHY_RATING_OPTIONS["g"]["id"])
@@ -780,6 +785,17 @@ class Realm(models.Model):  # type: ignore[django-manager-missing] # django-stub
     )
     night_logo_version = models.PositiveSmallIntegerField(default=1)
 
+    def __str__(self) -> str:
+        return f"{self.string_id} {self.id}"
+
+    def get_giphy_rating_options(self) -> Dict[str, Dict[str, object]]:
+        """Wrapper function for GIPHY_RATING_OPTIONS that ensures evaluation
+        of the lazily evaluated `name` field without modifying the original."""
+        return {
+            rating_type: {"name": str(rating["name"]), "id": rating["id"]}
+            for rating_type, rating in self.GIPHY_RATING_OPTIONS.items()
+        }
+
     def authentication_methods_dict(self) -> Dict[str, bool]:
         """Returns the mapping from authentication flags to their status,
         showing only those authentication flags that are supported on
@@ -799,9 +815,6 @@ class Realm(models.Model):  # type: ignore[django-manager-missing] # django-stub
             if backend in supported_backends:
                 ret[k] = v
         return ret
-
-    def __str__(self) -> str:
-        return f"{self.string_id} {self.id}"
 
     # `realm` instead of `self` here to make sure the parameters of the cache key
     # function matches the original method.
@@ -1112,9 +1125,6 @@ class RealmEmoji(models.Model):
     PATH_ID_TEMPLATE = "{realm_id}/emoji/images/{emoji_file_name}"
     STILL_PATH_ID_TEMPLATE = "{realm_id}/emoji/images/still/{emoji_filename_without_extension}.png"
 
-    def __str__(self) -> str:
-        return f"{self.realm.string_id}: {self.id} {self.name} {self.deactivated} {self.file_name}"
-
     class Meta:
         constraints = [
             models.UniqueConstraint(
@@ -1123,6 +1133,9 @@ class RealmEmoji(models.Model):
                 name="unique_realm_emoji_when_false_deactivated",
             ),
         ]
+
+    def __str__(self) -> str:
+        return f"{self.realm.string_id}: {self.id} {self.name} {self.deactivated} {self.file_name}"
 
 
 def get_realm_emoji_dicts(realm: Realm, only_active_emojis: bool = False) -> Dict[str, EmojiInfo]:
@@ -1273,6 +1286,9 @@ class RealmFilter(models.Model):
     class Meta:
         unique_together = ("realm", "pattern")
 
+    def __str__(self) -> str:
+        return f"{self.realm.string_id}: {self.pattern} {self.url_format_string}"
+
     def clean(self) -> None:
         """Validate whether the set of parameters in the URL Format string
         match the set of parameters in the regular expression.
@@ -1314,9 +1330,6 @@ class RealmFilter(models.Model):
                 _("Group %(name)r in linkifier pattern is not present in URL format string."),
                 params={"name": name},
             )
-
-    def __str__(self) -> str:
-        return f"{self.realm.string_id}: {self.pattern} {self.url_format_string}"
 
 
 def get_linkifiers_cache_key(realm_id: int) -> str:
@@ -1473,13 +1486,13 @@ class Recipient(models.Model):
     # N.B. If we used Django's choice=... we would get this for free (kinda)
     _type_names = {PERSONAL: "personal", STREAM: "stream", HUDDLE: "huddle"}
 
-    def type_name(self) -> str:
-        # Raises KeyError if invalid
-        return self._type_names[self.type]
-
     def __str__(self) -> str:
         display_recipient = get_display_recipient(self)
         return f"{display_recipient} ({self.type_id}, {self.type})"
+
+    def type_name(self) -> str:
+        # Raises KeyError if invalid
+        return self._type_names[self.type]
 
 
 class UserBaseSettings(models.Model):
@@ -2224,6 +2237,7 @@ class UserGroup(models.Model):  # type: ignore[django-manager-missing] # django-
     MODERATORS_GROUP_NAME = "@role:moderators"
     MEMBERS_GROUP_NAME = "@role:members"
     EVERYONE_GROUP_NAME = "@role:everyone"
+    NOBODY_GROUP_NAME = "@role:nobody"
 
     # We do not have "Full members" and "Everyone on the internet"
     # group here since there isn't a separate role value for full
@@ -2284,6 +2298,42 @@ def remote_user_to_email(remote_user: str) -> str:
 # Make sure we flush the UserProfile object from our remote cache
 # whenever we save it.
 post_save.connect(flush_user_profile, sender=UserProfile)
+
+
+class PreregistrationRealm(models.Model):
+    """Data on a partially created realm entered by a user who has
+    completed the "new organization" form. Used to transfer the user's
+    selections from the pre-confirmation "new organization" form to
+    the post-confirmation user registration form.
+
+    Note that the values stored here may not match those of the
+    created realm (in the event the user creates a realm at all),
+    because we allow the user to edit these values in the registration
+    form (and in fact the user will be required to do so if the
+    `string_id` is claimed by another realm before registraiton is
+    completed).
+    """
+
+    name = models.CharField(max_length=Realm.MAX_REALM_NAME_LENGTH)
+    org_type = models.PositiveSmallIntegerField(
+        default=Realm.ORG_TYPES["unspecified"]["id"],
+        choices=[(t["id"], t["name"]) for t in Realm.ORG_TYPES.values()],
+    )
+    string_id = models.CharField(max_length=Realm.MAX_REALM_SUBDOMAIN_LENGTH)
+    email = models.EmailField()
+
+    confirmation = GenericRelation("confirmation.Confirmation", related_query_name="prereg_realm")
+    status = models.IntegerField(default=0)
+
+    # The Realm created upon completion of the registration
+    # for this PregistrationRealm
+    created_realm = models.ForeignKey(Realm, null=True, related_name="+", on_delete=models.SET_NULL)
+
+    # The UserProfile created upon completion of the registration
+    # for this PregistrationRealm
+    created_user = models.ForeignKey(
+        UserProfile, null=True, related_name="+", on_delete=models.SET_NULL
+    )
 
 
 class PreregistrationUser(models.Model):
@@ -2569,8 +2619,14 @@ class Stream(models.Model):
             require_system_group=True,
             allow_internet_group=False,
             allow_owners_group=False,
+            allow_nobody_group=False,
         ),
     }
+
+    class Meta:
+        indexes = [
+            models.Index(Upper("name"), name="upper_stream_name_idx"),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -2628,11 +2684,6 @@ class Stream(models.Model):
             stream_post_policy=self.stream_post_policy,
             is_announcement_only=self.stream_post_policy == Stream.STREAM_POST_POLICY_ADMINS,
         )
-
-    class Meta:
-        indexes = [
-            models.Index(Upper("name"), name="upper_stream_name_idx"),
-        ]
 
 
 post_save.connect(flush_stream, sender=Stream)
@@ -4064,12 +4115,6 @@ class UserPresence(models.Model):
       https://zulip.readthedocs.io/en/latest/subsystems/presence.html
     """
 
-    class Meta:
-        unique_together = ("user_profile", "client")
-        index_together = [
-            ("realm", "timestamp"),
-        ]
-
     user_profile = models.ForeignKey(UserProfile, on_delete=CASCADE)
     realm = models.ForeignKey(Realm, on_delete=CASCADE)
     client = models.ForeignKey(Client, on_delete=CASCADE)
@@ -4094,6 +4139,12 @@ class UserPresence(models.Model):
     # There is no "inactive" status, because that is encoded by the
     # timestamp being old.
     status = models.PositiveSmallIntegerField(default=ACTIVE)
+
+    class Meta:
+        unique_together = ("user_profile", "client")
+        index_together = [
+            ("realm", "timestamp"),
+        ]
 
     @staticmethod
     def status_to_string(status: int) -> str:
@@ -4294,20 +4345,21 @@ class ScheduledMessage(models.Model):
         default=SEND_LATER,
     )
 
+    def __str__(self) -> str:
+        display_recipient = get_display_recipient(self.recipient)
+        return f"{display_recipient} {self.subject} {self.sender!r} {self.scheduled_timestamp}"
+
     def topic_name(self) -> str:
         return self.subject
 
     def set_topic_name(self, topic_name: str) -> None:
         self.subject = topic_name
 
-    def __str__(self) -> str:
-        display_recipient = get_display_recipient(self.recipient)
-        return f"{display_recipient} {self.subject} {self.sender!r} {self.scheduled_timestamp}"
-
 
 EMAIL_TYPES = {
     "followup_day1": ScheduledEmail.WELCOME,
     "followup_day2": ScheduledEmail.WELCOME,
+    "onboarding_zulip_guide": ScheduledEmail.WELCOME,
     "digest": ScheduledEmail.DIGEST,
     "invitation_reminder": ScheduledEmail.INVITATION_REMINDER,
 }
@@ -4610,6 +4662,9 @@ class CustomProfileField(models.Model):
     class Meta:
         unique_together = ("realm", "name")
 
+    def __str__(self) -> str:
+        return f"{self.realm!r} {self.name} {self.field_type} {self.order}"
+
     def as_dict(self) -> ProfileDataElementBase:
         data_as_dict: ProfileDataElementBase = {
             "id": self.id,
@@ -4628,9 +4683,6 @@ class CustomProfileField(models.Model):
         if self.field_type in [CustomProfileField.SHORT_TEXT, CustomProfileField.LONG_TEXT]:
             return True
         return False
-
-    def __str__(self) -> str:
-        return f"{self.realm!r} {self.name} {self.field_type} {self.order}"
 
 
 def custom_profile_fields_for_realm(realm_id: int) -> QuerySet[CustomProfileField]:

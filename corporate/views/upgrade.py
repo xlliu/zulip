@@ -36,14 +36,14 @@ from corporate.models import (
     get_current_plan_by_customer,
     get_customer_by_realm,
 )
-from corporate.views.billing_page import billing_home
+from corporate.views.billing_page import add_sponsorship_info_to_context, billing_home
 from zerver.actions.users import do_make_user_billing_admin
 from zerver.decorator import require_organization_member, zulip_login_required
 from zerver.lib.request import REQ, has_request_variables
 from zerver.lib.response import json_success
 from zerver.lib.send_email import FromAddress, send_email
 from zerver.lib.validator import check_bool, check_int, check_string_in
-from zerver.models import Realm, UserProfile, get_org_type_display_name
+from zerver.models import UserProfile, get_org_type_display_name
 
 billing_logger = logging.getLogger("corporate.stripe")
 
@@ -65,6 +65,7 @@ def check_upgrade_parameters(
     license_management: Optional[str],
     licenses: Optional[int],
     seat_count: int,
+    exempt_from_license_number_check: bool,
 ) -> None:
     if billing_modality not in VALID_BILLING_MODALITY_VALUES:  # nocoverage
         raise BillingError("unknown billing_modality", "")
@@ -72,7 +73,12 @@ def check_upgrade_parameters(
         raise BillingError("unknown schedule")
     if license_management not in VALID_LICENSE_MANAGEMENT_VALUES:  # nocoverage
         raise BillingError("unknown license_management")
-    validate_licenses(billing_modality == "charge_automatically", licenses, seat_count)
+    validate_licenses(
+        billing_modality == "charge_automatically",
+        licenses,
+        seat_count,
+        exempt_from_license_number_check,
+    )
 
 
 def setup_upgrade_checkout_session_and_payment_intent(
@@ -171,8 +177,18 @@ def upgrade(
         if billing_modality == "send_invoice":
             schedule = "annual"
             license_management = "manual"
+
+        customer = get_customer_by_realm(user.realm)
+        exempt_from_license_number_check = (
+            customer is not None and customer.exempt_from_license_number_check
+        )
         check_upgrade_parameters(
-            billing_modality, schedule, license_management, licenses, seat_count
+            billing_modality,
+            schedule,
+            license_management,
+            licenses,
+            seat_count,
+            exempt_from_license_number_check,
         )
         assert licenses is not None and license_management is not None
         automanage_licenses = license_management == "automatic"
@@ -258,6 +274,10 @@ def initial_upgrade(
     if customer is not None and customer.default_discount is not None:
         percent_off = customer.default_discount
 
+    exempt_from_license_number_check = (
+        customer is not None and customer.exempt_from_license_number_check
+    )
+
     seat_count = get_latest_seat_count(user.realm)
     signed_seat_count, salt = sign_string(str(seat_count))
     context: Dict[str, Any] = {
@@ -268,6 +288,7 @@ def initial_upgrade(
         "salt": salt,
         "min_invoiced_licenses": max(seat_count, MIN_INVOICED_LICENSES),
         "default_invoice_days_until_due": DEFAULT_INVOICE_DAYS_UNTIL_DUE,
+        "exempt_from_license_number_check": exempt_from_license_number_check,
         "plan": "Zulip Cloud Standard",
         "free_trial_days": settings.FREE_TRIAL_DAYS,
         "onboarding": onboarding,
@@ -278,17 +299,10 @@ def initial_upgrade(
             "percent_off": float(percent_off),
             "demo_organization_scheduled_deletion_date": user.realm.demo_organization_scheduled_deletion_date,
         },
-        "realm_org_type": user.realm.org_type,
-        "sorted_org_types": sorted(
-            (
-                [org_type_name, org_type]
-                for (org_type_name, org_type) in Realm.ORG_TYPES.items()
-                if not org_type.get("hidden")
-            ),
-            key=lambda d: d[1]["display_order"],
-        ),
         "is_demo_organization": user.realm.demo_organization_scheduled_deletion_date is not None,
     }
+    add_sponsorship_info_to_context(context, user)
+
     response = render(request, "corporate/upgrade.html", context=context)
     return response
 

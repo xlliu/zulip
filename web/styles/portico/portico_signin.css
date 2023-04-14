@@ -24,9 +24,9 @@ html {
     padding: 30px;
     min-width: 0;
 
-    background-color: hsl(0, 0%, 100%);
-    box-shadow: 0 0 4px hsla(0, 0%, 0%, 0.1);
-    border: 1px solid hsl(0, 0%, 87%);
+    background-color: hsl(0deg 0% 100%);
+    box-shadow: 0 0 4px hsl(0deg 0% 0% / 10%);
+    border: 1px solid hsl(0deg 0% 87%);
     border-radius: 4px;
 }
 
@@ -37,12 +37,18 @@ html {
     font-size: 0.9em;
 
     & a {
-        color: hsl(164, 100%, 23%);
+        color: hsl(164deg 100% 23%);
 
         &:hover {
             text-decoration: none;
-            color: hsl(156, 62%, 61%);
+            color: hsl(156deg 62% 61%);
         }
+    }
+}
+
+#new-realm-creation {
+    .get-started {
+        font-size: 2rem;
     }
 }
 
@@ -53,17 +59,17 @@ html {
     font-size: 1.2em;
 
     & a {
-        color: hsl(164, 100%, 23%);
+        color: hsl(164deg 100% 23%);
 
         &:hover {
             text-decoration: none;
-            color: hsl(156, 62%, 61%);
+            color: hsl(156deg 62% 61%);
         }
     }
 }
 
 .grey {
-    color: hsl(0, 0%, 67%);
+    color: hsl(0deg 0% 67%);
 }
 
 .find-account-page-container #find_account i {
@@ -105,12 +111,12 @@ html {
             padding: 4px 6px;
             width: 220px;
             font-size: 14px;
-            color: hsl(0, 0%, 33%);
+            color: hsl(0deg 0% 33%);
             border-radius: 4px;
-            border: 1px solid hsl(0, 0%, 80%);
+            border: 1px solid hsl(0deg 0% 80%);
             margin-bottom: 10px;
             cursor: pointer;
-            background-color: hsl(0, 0%, 100%);
+            background-color: hsl(0deg 0% 100%);
             font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
         }
     }
@@ -150,13 +156,13 @@ html {
         }
 
         .form-inline .outline {
-            border: 2px inset hsl(213, 23%, 25%);
-            background-color: hsl(0, 0%, 100%);
-            color: hsl(213, 23%, 25%);
+            border: 2px inset hsl(213deg 23% 25%);
+            background-color: hsl(0deg 0% 100%);
+            color: hsl(213deg 23% 25%);
             padding: 13px 20px 11px;
 
             &:hover {
-                background-color: hsl(213, 65%, 97%);
+                background-color: hsl(213deg 65% 97%);
             }
         }
 
@@ -182,8 +188,8 @@ html {
     }
 
     .dev-button {
-        color: hsl(170, 41%, 52%);
-        border: 1px solid hsl(170, 41%, 52%);
+        color: hsl(170deg 41% 52%);
+        border: 1px solid hsl(170deg 41% 52%);
         border-radius: 4px;
         background-color: transparent;
         font-family: inherit;
@@ -196,8 +202,8 @@ html {
         transition: color 0.3s ease, border 0.3s ease;
 
         &:hover {
-            color: hsl(156, 62%, 61%);
-            border-color: hsl(156, 62%, 61%);
+            color: hsl(156deg 62% 61%);
+            border-color: hsl(156deg 62% 61%);
         }
 
         &.dev-login-button {
@@ -235,7 +241,7 @@ html {
         .invite-required {
             display: block;
 
-            color: hsl(0, 0%, 67%);
+            color: hsl(0deg 0% 67%);
             font-weight: normal;
         }
     }
@@ -272,22 +278,22 @@ html {
 }
 
 .header {
-    color: hsl(0, 0%, 27%);
-    background-color: hsl(0, 0%, 100%);
+    color: hsl(0deg 0% 27%);
+    background-color: hsl(0deg 0% 100%);
     position: fixed;
     width: 100%;
     top: 0;
 
     .top-links a,
     .header-main .logo span {
-        color: hsl(0, 0%, 27%);
+        color: hsl(0deg 0% 27%);
     }
 }
 
 .register-form {
     &.new-style {
         text-align: left;
-        color: hsl(0, 0%, 45%);
+        color: hsl(0deg 0% 45%);
     }
 
     #errors {
@@ -395,8 +401,8 @@ html {
         font-weight: 400;
         box-sizing: border-box;
         outline: none;
-        color: hsl(0, 0%, 100%);
-        background-color: hsl(213, 23%, 25%);
+        color: hsl(0deg 0% 100%);
+        background-color: hsl(213deg 23% 25%);
 
         margin: 25px 0 5px;
         height: 50px;
@@ -407,15 +413,15 @@ html {
         transition: all 0.3s ease;
 
         &:hover {
-            background-color: hsl(213, 33%, 31%);
+            background-color: hsl(213deg 33% 31%);
         }
 
         &:active {
-            background-color: hsl(214, 28%, 16%);
+            background-color: hsl(214deg 28% 16%);
         }
 
         &:focus {
-            outline: 3px solid hsl(213, 81%, 79%);
+            outline: 3px solid hsl(213deg 81% 79%);
         }
 
         &.full-width {
@@ -430,15 +436,15 @@ html {
     .demo-organization-warning {
         position: relative;
         display: block;
-        background-color: hsl(360, 100%, 93%);
-        border: 1px solid hsl(0, 0%, 80%);
+        background-color: hsl(360deg 100% 93%);
+        border: 1px solid hsl(0deg 0% 80%);
         border-radius: 4px;
         padding: 10px;
         margin: 10px 0;
         font-size: 1rem;
         font-weight: 500;
         line-height: 1.5;
-        color: hsl(0, 0%, 27%);
+        color: hsl(0deg 0% 27%);
 
         & a {
             text-decoration: none;
@@ -464,7 +470,7 @@ html {
             background-color: transparent;
 
             border: none;
-            color: hsl(0, 44%, 54%);
+            color: hsl(0deg 44% 54%);
         }
 
         &.alert-error {
@@ -479,7 +485,7 @@ html {
     .get-started {
         font-size: 2.5rem;
         text-align: center;
-        color: hsl(0, 0%, 40%);
+        color: hsl(0deg 0% 40%);
         margin-bottom: 20px;
     }
 
@@ -507,21 +513,21 @@ html {
 
             width: 280px;
 
-            border: 1px solid hsl(0, 0%, 87%);
+            border: 1px solid hsl(0deg 0% 87%);
             box-shadow: none;
             border-radius: 4px;
-            background-color: hsl(0, 0%, 100%);
-            color: hsl(0, 0%, 33%);
+            background-color: hsl(0deg 0% 100%);
+            color: hsl(0deg 0% 33%);
 
             transition: border 0.3s ease;
 
             &:focus:invalid {
                 box-shadow: none;
-                color: hsl(0, 0%, 27%);
+                color: hsl(0deg 0% 27%);
             }
 
             &:focus {
-                border: 1px solid hsl(0, 0%, 53%);
+                border: 1px solid hsl(0deg 0% 53%);
             }
         }
 
@@ -546,7 +552,7 @@ html {
                 transform: translateY(39px) translateX(14px);
                 font-size: 1.2rem;
                 font-weight: 400;
-                color: hsl(0, 0%, 67%);
+                color: hsl(0deg 0% 67%);
 
                 pointer-events: none;
             }
@@ -567,7 +573,7 @@ html {
 
             font-size: 1rem;
             font-weight: 600;
-            color: hsl(0, 0%, 27%);
+            color: hsl(0deg 0% 27%);
         }
 
         /* The width of the "Organization name" text box
@@ -581,7 +587,7 @@ html {
             display: block;
             padding: 0;
 
-            color: hsl(1.1, 44.7%, 50.4%);
+            color: hsl(1.1deg 44.7% 50.4%);
             font-size: 0.7em;
             font-weight: 600;
             text-align: left;
@@ -597,7 +603,7 @@ html {
             top: 0;
             right: 0;
             text-align: right;
-            color: hsl(1.1, 44.7%, 50.4%);
+            color: hsl(1.1deg 44.7% 50.4%);
             font-size: 0.7em;
             font-weight: 600;
             padding-left: 0;
@@ -660,7 +666,7 @@ html {
 
     & select {
         margin-bottom: 10px;
-        width: auto;
+        width: fit-content;
         font-size: 16px;
         font-family: inherit;
     }
@@ -675,7 +681,7 @@ html {
 
         & p {
             font-weight: 400;
-            color: hsl(0, 0%, 67%);
+            color: hsl(0deg 0% 67%);
         }
     }
 
@@ -683,7 +689,7 @@ html {
         width: 100%;
         display: block;
         margin: 10px auto;
-        color: hsl(0, 0%, 34%);
+        color: hsl(0deg 0% 34%);
         font-weight: 600;
         text-align: center;
         position: relative;
@@ -699,11 +705,11 @@ html {
             left: 0;
             z-index: -1;
 
-            border-bottom: 2px solid hsl(0, 0%, 87%);
+            border-bottom: 2px solid hsl(0deg 0% 87%);
         }
 
         & span {
-            background-color: hsl(0, 0%, 100%);
+            background-color: hsl(0deg 0% 100%);
             padding: 0 5px;
         }
     }
@@ -732,7 +738,7 @@ html {
 
     .left-side {
         width: 500px;
-        border-right: 1px solid hsl(0, 0%, 93%);
+        border-right: 1px solid hsl(0deg 0% 93%);
         position: relative;
         left: -1px;
 
@@ -745,7 +751,7 @@ html {
         }
 
         + .right-side {
-            border-left: 1px solid hsl(0, 0%, 93%);
+            border-left: 1px solid hsl(0deg 0% 93%);
             /* this is to make sure the borders of the left and right side overlap
                each other. */
             padding-left: 15px;
@@ -790,7 +796,7 @@ html {
 
     .organization-path {
         font-weight: 400;
-        color: hsl(0, 0%, 47%);
+        color: hsl(0deg 0% 47%);
         margin-top: 5px;
     }
 }
@@ -811,28 +817,28 @@ button.login-social-button {
     width: 328px;
     height: auto;
     /* Using 44px gives us more space between text and icon so that they don't overlap. */
-    /* Tested in Russian laguange which has the maximum text. */
+    /* Tested in Russian language which has the maximum text. */
     padding-left: 44px;
     line-height: 1;
 
     background-size: auto 60%;
     background-repeat: no-repeat;
     background-position: 13px 50%;
-    background-color: hsl(0, 0%, 100%);
-    box-shadow: 0 1px 3px hsla(0, 0%, 0%, 0.3), 0 0 5px hsla(0, 0%, 0%, 0.1);
+    background-color: hsl(0deg 0% 100%);
+    box-shadow: 0 1px 3px hsl(0deg 0% 0% / 30%), 0 0 5px hsl(0deg 0% 0% / 10%);
     margin-left: 0;
     margin-top: 0;
 
-    color: hsl(0, 0%, 34%);
+    color: hsl(0deg 0% 34%);
 
     &:hover {
-        background-color: hsl(0, 0%, 98%);
-        box-shadow: 1px 2px 5px hsla(0, 0%, 0%, 0.2);
+        background-color: hsl(0deg 0% 98%);
+        box-shadow: 1px 2px 5px hsl(0deg 0% 0% / 20%);
     }
 
     &:active {
-        background-color: hsl(0, 0%, 93%);
-        box-shadow: 0 1px 1px hsla(0, 0%, 0%, 0.3);
+        background-color: hsl(0deg 0% 93%);
+        box-shadow: 0 1px 1px hsl(0deg 0% 0% / 30%);
     }
 }
 
@@ -862,7 +868,7 @@ button#register_auth_button_gitlab {
 
 .split-view .actions a,
 .back-to-login {
-    color: hsl(164, 100%, 23%);
+    color: hsl(164deg 100% 23%);
     text-decoration: none;
     font-weight: 600;
     font-size: 0.8em;
@@ -873,11 +879,12 @@ button#register_auth_button_gitlab {
 
     &:hover {
         text-decoration: none;
-        color: hsl(156, 62%, 61%);
+        color: hsl(156deg 62% 61%);
     }
 }
 
-#registration {
+#registration,
+#new-realm-creation {
     width: auto;
     padding: 0;
     margin: 30px;
@@ -933,9 +940,9 @@ button#register_auth_button_gitlab {
             }
 
             & textarea {
-                color: hsl(0, 0%, 33%);
+                color: hsl(0deg 0% 33%);
                 vertical-align: middle;
-                background-color: hsl(0, 0%, 100%);
+                background-color: hsl(0deg 0% 100%);
 
                 &:focus {
                     outline: 0;
@@ -1003,7 +1010,8 @@ button#register_auth_button_gitlab {
 
     #id_email,
     #support_from,
-    #support_realm {
+    #support_realm,
+    .not-editable-realm-field {
         font-weight: normal;
         margin: 2px;
         padding-top: 25px;
@@ -1016,7 +1024,7 @@ button#register_auth_button_gitlab {
         max-width: none;
         margin: 2px 0;
         text-align: left;
-        color: hsl(0, 0%, 47%);
+        color: hsl(0deg 0% 47%);
         font-size: 0.9rem;
         font-weight: 400;
         line-height: 1.2;
@@ -1033,12 +1041,17 @@ button#register_auth_button_gitlab {
         margin-bottom: 0;
         font-size: 21px;
         line-height: 40px;
-        color: hsla(0, 0%, 0%, 0.5);
+        color: hsl(0deg 0% 0% / 50%);
         border: 0;
-        border-bottom: 1px solid hsla(0, 0%, 90%, 1);
+        border-bottom: 1px solid hsl(0deg 0% 90%);
 
         + .input-box {
             margin-top: 20px;
+        }
+
+        .edit-realm-details {
+            float: right;
+            cursor: pointer;
         }
     }
 
@@ -1081,7 +1094,7 @@ button#register_auth_button_gitlab {
 
 #profile_info_section {
     #profile_avatar {
-        border: 1px solid hsl(0, 0%, 80%);
+        border: 1px solid hsl(0deg 0% 80%);
         border-radius: 8px;
         width: 120px;
         height: 120px;
@@ -1138,11 +1151,11 @@ button#register_auth_button_gitlab {
         margin: 0;
 
         &.select-email-form:hover {
-            background-color: hsl(202, 56%, 91%);
+            background-color: hsl(202deg 56% 91%);
             cursor: pointer;
 
             & i.fa {
-                color: hsl(203, 63%, 76%);
+                color: hsl(203deg 63% 76%);
             }
         }
     }
@@ -1150,7 +1163,7 @@ button#register_auth_button_gitlab {
     .choose-email-box {
         padding: 13px 0;
         margin: 0 30px;
-        border-bottom: 1px solid hsl(0, 0%, 95%);
+        border-bottom: 1px solid hsl(0deg 0% 95%);
         display: flex;
         align-items: center;
 
@@ -1177,7 +1190,7 @@ button#register_auth_button_gitlab {
         }
 
         & i.fa {
-            color: hsl(0, 0%, 67%);
+            color: hsl(0deg 0% 67%);
             text-align: center;
             line-height: 38px;
 
@@ -1259,7 +1272,7 @@ button#register_auth_button_gitlab {
                 margin: 20px 0;
 
                 & a {
-                    color: hsl(200, 100%, 36%);
+                    color: hsl(200deg 100% 36%);
                 }
             }
         }

@@ -261,6 +261,7 @@ export function append_custom_profile_fields(element_id, user_id) {
             is_pronouns_field: field.type === all_field_types.PRONOUNS.id,
             is_select_field,
             field_choices,
+            for_manage_user_modal: element_id === "#edit-user-form .custom-profile-field-form",
         });
         $(element_id).append(html);
     }
@@ -497,7 +498,7 @@ export function set_up() {
                 api_key: $("#api_key_value").text(),
             };
             const data = settings_bots.generate_zuliprc_content(bot_object);
-            $(this).attr("href", settings_bots.encode_zuliprc_as_uri(data));
+            $(this).attr("href", settings_bots.encode_zuliprc_as_url(data));
         });
 
         $("#api_key_modal [data-micromodal-close]").on("click", () => {

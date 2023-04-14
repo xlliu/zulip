@@ -80,6 +80,7 @@ mock_esm("../src/giphy");
 
 const electron_bridge = set_global("electron_bridge", {});
 
+message_lists.update_recipient_bar_background_color = noop;
 message_lists.current = {
     rerender_view: noop,
     data: {
@@ -955,6 +956,11 @@ run_test("user_settings", ({override}) => {
         assert_same(args.name, event.property);
         assert_same(args.setting, event.value);
     }
+
+    event = event_fixtures.user_settings__email_address_visibility;
+    user_settings.email_address_visibility = 3;
+    dispatch(event);
+    assert_same(user_settings.email_address_visibility, 5);
 });
 
 run_test("update_message (read)", ({override}) => {

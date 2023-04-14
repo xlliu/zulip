@@ -146,6 +146,7 @@ export default (
                             "rendered_markdown",
                             "tooltip_hotkey_hints",
                         ],
+                        precompileOptions: {strict: true},
                         preventIndent: true,
                         // This replaces relative image resources with
                         // a computed require() path to them, so their
@@ -170,6 +171,7 @@ export default (
                   // (https://github.com/webpack/webpack/issues/11937)
                   (pathData) => "files" + path.join("/", pathData.filename!),
             chunkFilename: production ? "[contenthash].js" : "[id].js",
+            crossOriginLoading: "anonymous",
         },
         resolve: {
             ...baseConfig.resolve,

@@ -1,6 +1,6 @@
 import datetime
 from email.headerregistry import Address
-from typing import Any, Dict, Iterable, List, Mapping, Optional, TypeVar, Union
+from typing import Any, Dict, Iterable, List, Optional, TypeVar, Union
 from unittest import mock
 
 import orjson
@@ -25,6 +25,7 @@ from zerver.actions.users import (
     do_change_user_role,
     do_deactivate_user,
     do_delete_user,
+    do_delete_user_preserving_messages,
 )
 from zerver.lib.avatar import avatar_url, get_gravatar_url
 from zerver.lib.bulk_create import create_users
@@ -212,8 +213,7 @@ class PermissionTest(ZulipTestCase):
         self.assertFalse(othello_dict["is_owner"])
 
         req = dict(role=UserProfile.ROLE_REALM_OWNER)
-        events: List[Mapping[str, Any]] = []
-        with self.tornado_redirected_to_list(events, expected_num_events=4):
+        with self.capture_send_event_calls(expected_num_events=4) as events:
             result = self.client_patch(f"/json/users/{othello.id}", req)
         self.assert_json_success(result)
         owner_users = realm.get_human_owner_users()
@@ -223,7 +223,7 @@ class PermissionTest(ZulipTestCase):
         self.assertEqual(person["role"], UserProfile.ROLE_REALM_OWNER)
 
         req = dict(role=UserProfile.ROLE_MEMBER)
-        with self.tornado_redirected_to_list(events, expected_num_events=4):
+        with self.capture_send_event_calls(expected_num_events=4) as events:
             result = self.client_patch(f"/json/users/{othello.id}", req)
         self.assert_json_success(result)
         owner_users = realm.get_human_owner_users()
@@ -235,7 +235,7 @@ class PermissionTest(ZulipTestCase):
         # Cannot take away from last owner
         self.login("desdemona")
         req = dict(role=UserProfile.ROLE_MEMBER)
-        with self.tornado_redirected_to_list(events, expected_num_events=4):
+        with self.capture_send_event_calls(expected_num_events=4) as events:
             result = self.client_patch(f"/json/users/{iago.id}", req)
         self.assert_json_success(result)
         owner_users = realm.get_human_owner_users()
@@ -243,7 +243,7 @@ class PermissionTest(ZulipTestCase):
         person = events[0]["event"]["person"]
         self.assertEqual(person["user_id"], iago.id)
         self.assertEqual(person["role"], UserProfile.ROLE_MEMBER)
-        with self.tornado_redirected_to_list([], expected_num_events=0):
+        with self.capture_send_event_calls(expected_num_events=0):
             result = self.client_patch(f"/json/users/{desdemona.id}", req)
         self.assert_json_error(
             result, "The owner permission cannot be removed from the only organization owner."
@@ -251,7 +251,7 @@ class PermissionTest(ZulipTestCase):
 
         do_change_user_role(iago, UserProfile.ROLE_REALM_ADMINISTRATOR, acting_user=None)
         self.login("iago")
-        with self.tornado_redirected_to_list([], expected_num_events=0):
+        with self.capture_send_event_calls(expected_num_events=0):
             result = self.client_patch(f"/json/users/{desdemona.id}", req)
         self.assert_json_error(result, "Must be an organization owner")
 
@@ -274,8 +274,7 @@ class PermissionTest(ZulipTestCase):
         # Giveth
         req = dict(role=orjson.dumps(UserProfile.ROLE_REALM_ADMINISTRATOR).decode())
 
-        events: List[Mapping[str, Any]] = []
-        with self.tornado_redirected_to_list(events, expected_num_events=4):
+        with self.capture_send_event_calls(expected_num_events=4) as events:
             result = self.client_patch(f"/json/users/{othello.id}", req)
         self.assert_json_success(result)
         admin_users = realm.get_human_admin_users()
@@ -286,7 +285,7 @@ class PermissionTest(ZulipTestCase):
 
         # Taketh away
         req = dict(role=orjson.dumps(UserProfile.ROLE_MEMBER).decode())
-        with self.tornado_redirected_to_list(events, expected_num_events=4):
+        with self.capture_send_event_calls(expected_num_events=4) as events:
             result = self.client_patch(f"/json/users/{othello.id}", req)
         self.assert_json_success(result)
         admin_users = realm.get_human_admin_users()
@@ -512,11 +511,10 @@ class PermissionTest(ZulipTestCase):
         )
 
         req = dict(role=orjson.dumps(new_role).decode())
-        events: List[Mapping[str, Any]] = []
         num_events = 3
         if UserProfile.ROLE_MEMBER in [old_role, new_role]:
             num_events = 4
-        with self.tornado_redirected_to_list(events, expected_num_events=num_events):
+        with self.capture_send_event_calls(expected_num_events=num_events) as events:
             result = self.client_patch(f"/json/users/{user_profile.id}", req)
         self.assert_json_success(result)
 
@@ -788,11 +786,9 @@ class QueryCountTest(ZulipTestCase):
 
         prereg_user = PreregistrationUser.objects.get(email="fred@zulip.com")
 
-        events: List[Mapping[str, Any]] = []
-
-        with self.assert_database_query_count(88):
+        with self.assert_database_query_count(90):
             with cache_tries_captured() as cache_tries:
-                with self.tornado_redirected_to_list(events, expected_num_events=11):
+                with self.capture_send_event_calls(expected_num_events=11) as events:
                     fred = do_create_user(
                         email="fred@zulip.com",
                         password="password",
@@ -1191,8 +1187,7 @@ class UserProfileTest(ZulipTestCase):
         # users; this work is happening before the user account is
         # created, so any changes will be reflected in the "add" event
         # introducing the user to clients.
-        events: List[Mapping[str, Any]] = []
-        with self.tornado_redirected_to_list(events, expected_num_events=0):
+        with self.capture_send_event_calls(expected_num_events=0):
             copy_default_settings(cordelia, iago)
 
         # We verify that cordelia and iago match, but hamlet has the defaults.
@@ -1248,8 +1243,7 @@ class UserProfileTest(ZulipTestCase):
         # users; this work is happening before the user account is
         # created, so any changes will be reflected in the "add" event
         # introducing the user to clients.
-        events: List[Mapping[str, Any]] = []
-        with self.tornado_redirected_to_list(events, expected_num_events=0):
+        with self.capture_send_event_calls(expected_num_events=0):
             copy_default_settings(realm_user_default, cordelia)
 
         self.assertEqual(cordelia.default_view, "recent_topics")
@@ -2315,6 +2309,87 @@ class DeleteUserTest(ZulipTestCase):
         self.assertEqual(Message.objects.filter(id__in=huddle_message_ids_from_cordelia).count(), 3)
 
         self.assertEqual(Message.objects.filter(sender_id=hamlet_user_id).count(), 0)
+
+        # Verify that the dummy user is subscribed to the deleted user's huddles, to keep huddle data
+        # in a correct state.
+        for recipient_id in huddle_with_hamlet_recipient_ids:
+            self.assertTrue(
+                Subscription.objects.filter(
+                    user_profile=replacement_dummy_user, recipient_id=recipient_id
+                ).exists()
+            )
+
+    def test_do_delete_user_preserving_messages(self) -> None:
+        """
+        This test is extremely similar to the one for do_delete_user, with the only difference being
+        that Messages are supposed to be preserved. All other effects should be identical.
+        """
+
+        realm = get_realm("zulip")
+        cordelia = self.example_user("cordelia")
+        othello = self.example_user("othello")
+        hamlet = self.example_user("hamlet")
+        hamlet_personal_recipient = hamlet.recipient
+        hamlet_user_id = hamlet.id
+        hamlet_date_joined = hamlet.date_joined
+
+        self.send_personal_message(cordelia, hamlet)
+        self.send_personal_message(hamlet, cordelia)
+
+        personal_message_ids_to_hamlet = Message.objects.filter(
+            recipient=hamlet_personal_recipient
+        ).values_list("id", flat=True)
+        self.assertGreater(len(personal_message_ids_to_hamlet), 0)
+        self.assertTrue(Message.objects.filter(sender=hamlet).exists())
+
+        huddle_message_ids_from_cordelia = [
+            self.send_huddle_message(cordelia, [hamlet, othello]) for i in range(3)
+        ]
+        huddle_message_ids_from_hamlet = [
+            self.send_huddle_message(hamlet, [cordelia, othello]) for i in range(3)
+        ]
+
+        huddle_with_hamlet_recipient_ids = list(
+            Subscription.objects.filter(
+                user_profile=hamlet, recipient__type=Recipient.HUDDLE
+            ).values_list("recipient_id", flat=True)
+        )
+        self.assertGreater(len(huddle_with_hamlet_recipient_ids), 0)
+
+        original_messages_from_hamlet_count = Message.objects.filter(
+            sender_id=hamlet_user_id
+        ).count()
+        self.assertGreater(original_messages_from_hamlet_count, 0)
+
+        do_delete_user_preserving_messages(hamlet)
+
+        replacement_dummy_user = UserProfile.objects.get(id=hamlet_user_id, realm=realm)
+
+        self.assertEqual(
+            replacement_dummy_user.delivery_email, f"deleteduser{hamlet_user_id}@zulip.testserver"
+        )
+        self.assertEqual(replacement_dummy_user.is_mirror_dummy, True)
+        self.assertEqual(replacement_dummy_user.is_active, False)
+        self.assertEqual(replacement_dummy_user.date_joined, hamlet_date_joined)
+
+        # All messages should have been preserved:
+        self.assertEqual(
+            Message.objects.filter(id__in=personal_message_ids_to_hamlet).count(),
+            len(personal_message_ids_to_hamlet),
+        )
+        self.assertEqual(
+            Message.objects.filter(id__in=huddle_message_ids_from_hamlet).count(),
+            len(huddle_message_ids_from_hamlet),
+        )
+        self.assertEqual(
+            Message.objects.filter(id__in=huddle_message_ids_from_cordelia).count(),
+            len(huddle_message_ids_from_cordelia),
+        )
+
+        self.assertEqual(
+            Message.objects.filter(sender_id=hamlet_user_id).count(),
+            original_messages_from_hamlet_count,
+        )
 
         # Verify that the dummy user is subscribed to the deleted user's huddles, to keep huddle data
         # in a correct state.
