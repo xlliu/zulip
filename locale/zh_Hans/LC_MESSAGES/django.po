@@ -931,7 +931,7 @@ msgstr ""
 #: templates/zerver/landing_nav.html:13 templates/zerver/portico-header.html:5
 #: templates/zerver/portico-header.html:9
 msgid "Zulip"
-msgstr "Xops"
+msgstr "Zulip"
 
 #: templates/zerver/close_window.html:5
 msgid "Video call ended"
