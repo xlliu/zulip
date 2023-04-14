@@ -27,8 +27,11 @@ class Command(compilemessages.Command):
     def handle(self, *args: Any, **options: Any) -> None:
         super().handle(*args, **options)
         self.strict = options["strict"]
+        print("-------------00000000000000----------------")
         self.extract_language_options()
+        print("-------------11111111111111----------------")
         self.create_language_name_map()
+        print("-------------22222222222222----------------")
 
     def create_language_name_map(self) -> None:
         join = os.path.join
