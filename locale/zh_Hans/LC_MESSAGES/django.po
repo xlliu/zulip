@@ -3685,7 +3685,7 @@ msgstr ""
 msgid ""
 "If you are new to Zulip, check out our [Getting started "
 "guide]({getting_started_url})!"
-msgstr "欢迎您 Xops 的新手"
+msgstr "如果您是 Zulip 的新手，请查看我们的 [入门指南]({getting_started_url})！"
 
 #: zerver/lib/onboarding.py:81
 msgid ""
@@ -3701,7 +3701,7 @@ msgstr "以下是我理解的一些消息："
 msgid ""
 "You can [download](/apps) the [mobile and desktop apps](/apps). Zulip also "
 "works great in a browser."
-msgstr "Xops 在浏览器中能很好地工作。"
+msgstr "您可以[下载](/apps) [移动和桌面应用程序](/apps)。 Zulip 在浏览器中也能很好地工作。"
 
 #: zerver/lib/onboarding.py:130
 msgid ""
