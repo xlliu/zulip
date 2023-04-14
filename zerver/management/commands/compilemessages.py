@@ -70,17 +70,15 @@ class Command(compilemessages.Command):
             raise Exception(f"Unknown language {locale}")
 
     def get_locales(self) -> List[str]:
-        try:
-            output = check_output(["git", "ls-files", "locale"], text=True)
-            tracked_files = output.split()
-            regex = re.compile(r"locale/(\w+)/LC_MESSAGES/django.po")
-            locales = ["en"]
-            for tracked_file in tracked_files:
-                matched = regex.search(tracked_file)
-                if matched:
-                    locales.append(matched.group(1))
-        except Exception as e:
-            raise Exception()
+        output = check_output(["git", "ls-files", "locale"], text=True)
+        tracked_files = output.split()
+        regex = re.compile(r"locale/(\w+)/LC_MESSAGES/django.po")
+        locales = ["en"]
+        for tracked_file in tracked_files:
+            matched = regex.search(tracked_file)
+            if matched:
+                locales.append(matched.group(1))
+
 
         return locales
 
@@ -90,14 +88,14 @@ class Command(compilemessages.Command):
 
         data: Dict[str, List[Dict[str, Any]]] = {"languages": []}
 
-        try:
-            locales = self.get_locales()
-        except CalledProcessError:
-            # In case we are not under a Git repo, fallback to getting the
-            # locales using listdir().
-            locales = os.listdir(locale_path)
-            locales.append("en")
-            locales = list(set(locales))
+        # try:
+        #     locales = self.get_locales()
+        # except CalledProcessError:
+        #     # In case we are not under a Git repo, fallback to getting the
+        #     # locales using listdir().
+        locales = os.listdir(locale_path)
+        locales.append("en")
+        locales = list(set(locales))
 
         for locale in sorted(locales):
             if locale == "en":
