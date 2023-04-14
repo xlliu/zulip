@@ -27,8 +27,8 @@ class ZerverConfig(AppConfig):
         # needs to be here (rather than e.g. at top-of-file) to avoid
         # running that code too early in Django's setup process, but
         # in any case, this is an intentionally unused import.
-        
-        # import zerver.signals  # noqa: F401
+
+        import zerver.signals  # noqa: F401
 
         if settings.POST_MIGRATION_CACHE_FLUSHING:
             post_migrate.connect(flush_cache, sender=self)
